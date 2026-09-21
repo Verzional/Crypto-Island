@@ -6,3 +6,5 @@ DerivedData/
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 *.xcuserstate
 project.xcworkspace/
+build/
+*.app
