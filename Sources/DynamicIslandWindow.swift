@@ -75,9 +75,9 @@ public struct NotchGeometry: Equatable {
 
     public var collapsedHeight: CGFloat {
         if hasNotch {
-            return notchHeight
+            return notchHeight + 1
         } else {
-            return 32
+            return 33
         }
     }
 
@@ -86,7 +86,7 @@ public struct NotchGeometry: Equatable {
     }
 
     public var expandedHeight: CGFloat {
-        return (hasNotch ? notchHeight : 0) + 128
+        return collapsedHeight + 126
     }
 
     public static func current(for screen: NSScreen? = nil) -> NotchGeometry {
