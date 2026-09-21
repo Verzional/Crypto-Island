@@ -518,7 +518,7 @@ public struct DynamicIslandView: View {
             )
 
             // Favorites Grid (Dynamic user favorites, max 9)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("FAVORITES")
                         .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -533,11 +533,38 @@ public struct DynamicIslandView: View {
                 }
 
                 if settings.favorites.isEmpty {
-                    Text("Star coins in the island (★) to save them here")
-                        .font(.system(size: 10))
-                        .foregroundColor(.gray)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 8)
+                    VStack(spacing: 8) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.yellow.opacity(0.12))
+                                .frame(width: 28, height: 28)
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(Color.yellow.opacity(0.85))
+                        }
+
+                        VStack(spacing: 3) {
+                            Text("No Favorites Yet")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white.opacity(0.9))
+
+                            Text("Click ★ on the island to pin coins here")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(.white.opacity(0.45))
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.white.opacity(0.03))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.08), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    )
                 } else {
                     let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
                     LazyVGrid(columns: columns, spacing: 6) {
@@ -573,12 +600,6 @@ public struct DynamicIslandView: View {
                     }
                 }
             }
-
-            // Helper text (clean, no bullet dot)
-            Text("Auto-appends USDT if omitted")
-                .font(.system(size: 9.5))
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(12)
         .frame(width: 250)
