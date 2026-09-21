@@ -17,17 +17,17 @@ public struct CryptoSymbol: Identifiable, Hashable, Codable {
         self.iconSymbol = iconSymbol
     }
 
-    /// Common presets available out-of-the-box
+    /// Common presets available out-of-the-box (Top 9 non-stablecoin cryptocurrencies)
     public static let presets: [CryptoSymbol] = [
         CryptoSymbol(symbol: "BTCUSDT", baseAsset: "BTC", name: "Bitcoin", iconSymbol: "bitcoinsign.circle.fill"),
         CryptoSymbol(symbol: "ETHUSDT", baseAsset: "ETH", name: "Ethereum", iconSymbol: "e.circle.fill"),
-        CryptoSymbol(symbol: "SOLUSDT", baseAsset: "SOL", name: "Solana", iconSymbol: "s.circle.fill"),
         CryptoSymbol(symbol: "BNBUSDT", baseAsset: "BNB", name: "BNB", iconSymbol: "b.circle.fill"),
-        CryptoSymbol(symbol: "DOGEUSDT", baseAsset: "DOGE", name: "Dogecoin", iconSymbol: "d.circle.fill"),
         CryptoSymbol(symbol: "XRPUSDT", baseAsset: "XRP", name: "Ripple", iconSymbol: "x.circle.fill"),
-        CryptoSymbol(symbol: "SUIUSDT", baseAsset: "SUI", name: "Sui", iconSymbol: "drop.fill"),
+        CryptoSymbol(symbol: "SOLUSDT", baseAsset: "SOL", name: "Solana", iconSymbol: "s.circle.fill"),
+        CryptoSymbol(symbol: "TRXUSDT", baseAsset: "TRX", name: "TRON", iconSymbol: "t.circle.fill"),
+        CryptoSymbol(symbol: "DOGEUSDT", baseAsset: "DOGE", name: "Dogecoin", iconSymbol: "d.circle.fill"),
         CryptoSymbol(symbol: "ADAUSDT", baseAsset: "ADA", name: "Cardano", iconSymbol: "a.circle.fill"),
-        CryptoSymbol(symbol: "PEPEUSDT", baseAsset: "PEPE", name: "Pepe", iconSymbol: "leaf.fill")
+        CryptoSymbol(symbol: "LINKUSDT", baseAsset: "LINK", name: "Chainlink", iconSymbol: "link.circle.fill")
     ]
 
     /// Creates a symbol from user text (e.g. "BTC" or "BTCUSDT")
