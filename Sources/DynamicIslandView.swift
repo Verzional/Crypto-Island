@@ -170,7 +170,7 @@ public struct DynamicIslandView: View {
 
                     collapseWorkItem?.cancel()
                     let work = DispatchWorkItem {
-                        guard !isHovered && !showingCustomInput && isExpanded else { return }
+                        guard !isHovered && !showingCustomInput && !settings.isPinned && isExpanded else { return }
                         isCollapsing = true
                         withAnimation(.spring(response: 0.30, dampingFraction: 0.86)) {
                             isExpanded = false
@@ -184,9 +184,19 @@ public struct DynamicIslandView: View {
                 }
             }
         }
+        .opacity((settings.stealthMode && !isExpanded && !isHovered) ? 0.0 : 1.0)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
         .animation(.easeInOut(duration: 0.2), value: binanceService.flashDirection)
+        .animation(.easeInOut(duration: 0.25), value: settings.stealthMode)
+        .animation(.easeInOut(duration: 0.25), value: isHovered)
+        .onChange(of: settings.isPinned) { pinned in
+            if pinned && !isExpanded {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    isExpanded = true
+                }
+            }
+        }
     }
 
     // MARK: - Collapsed View
