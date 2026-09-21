@@ -126,16 +126,17 @@ final class DynamicIslandHostingView<Content: View>: NSHostingView<Content> {
     var isExpandedProvider: () -> Bool = { false }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
+        let localPoint = convert(point, from: superview)
         let geometry = NotchGeometry.current()
-        if !isExpandedProvider() {
-            let collapsedWidth = geometry.collapsedWidth
-            let collapsedHeight = geometry.collapsedHeight
-            let minX = (bounds.width - collapsedWidth) / 2
-            let collapsedY = isFlipped ? 0 : (bounds.height - collapsedHeight)
-            let collapsedRect = NSRect(x: minX, y: collapsedY, width: collapsedWidth, height: collapsedHeight)
-            if !collapsedRect.contains(point) {
-                return nil
-            }
+        let isExpanded = isExpandedProvider()
+
+        let width = isExpanded ? geometry.expandedWidth : geometry.collapsedWidth
+        let height = isExpanded ? geometry.expandedHeight : geometry.collapsedHeight
+        let minX = (bounds.width - width) / 2
+        let activeRect = NSRect(x: minX, y: 0, width: width, height: height)
+
+        if !activeRect.contains(localPoint) {
+            return nil
         }
         return super.hitTest(point)
     }
