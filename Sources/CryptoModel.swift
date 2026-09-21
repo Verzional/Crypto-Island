@@ -76,8 +76,14 @@ public struct TickerData: Equatable {
     public let priceChangePercent: Double
     public let high24h: Double
     public let low24h: Double
+    public var vwap: Double
     public let volume: Double
     public let quoteVolume: Double
+    public var volume5m: Double
+    public var quoteVolume5m: Double
+    public var takerBuyRatio5m: Double
+    public var volume15m: Double
+    public var quoteVolume15m: Double
     public let lastUpdated: Date
     public var direction: PriceDirection = .neutral
 
@@ -88,8 +94,14 @@ public struct TickerData: Equatable {
         priceChangePercent: Double = 0.0,
         high24h: Double = 0.0,
         low24h: Double = 0.0,
+        vwap: Double = 0.0,
         volume: Double = 0.0,
         quoteVolume: Double = 0.0,
+        volume5m: Double = 0.0,
+        quoteVolume5m: Double = 0.0,
+        takerBuyRatio5m: Double = 50.0,
+        volume15m: Double = 0.0,
+        quoteVolume15m: Double = 0.0,
         lastUpdated: Date = Date(),
         direction: PriceDirection = .neutral
     ) {
@@ -99,27 +111,21 @@ public struct TickerData: Equatable {
         self.priceChangePercent = priceChangePercent
         self.high24h = high24h
         self.low24h = low24h
+        self.vwap = vwap
         self.volume = volume
         self.quoteVolume = quoteVolume
+        self.volume5m = volume5m
+        self.quoteVolume5m = quoteVolume5m
+        self.takerBuyRatio5m = takerBuyRatio5m
+        self.volume15m = volume15m
+        self.quoteVolume15m = quoteVolume15m
         self.lastUpdated = lastUpdated
         self.direction = direction
     }
 
     /// Formats price intelligently depending on magnitude
     public var formattedPrice: String {
-        if price >= 1000 {
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
-            formatter.minimumFractionDigits = 2
-            formatter.maximumFractionDigits = 2
-            return "$" + (formatter.string(from: NSNumber(value: price)) ?? String(format: "%.2f", price))
-        } else if price >= 1 {
-            return String(format: "$%.2f", price)
-        } else if price >= 0.001 {
-            return String(format: "$%.4f", price)
-        } else {
-            return String(format: "$%.6f", price)
-        }
+        formatPriceValue(price)
     }
 
     public var formattedChangePercent: String {
@@ -135,29 +141,61 @@ public struct TickerData: Equatable {
         formatPriceValue(low24h)
     }
 
+    public var formattedVWAP: String {
+        formatPriceValue(vwap)
+    }
+
+    public var formattedTakerBuyRatio5m: String {
+        guard quoteVolume5m > 0 else { return "--" }
+        return String(format: "%.0f%%", takerBuyRatio5m)
+    }
+
     public var formattedQuoteVolume: String {
-        if quoteVolume >= 1_000_000_000 {
-            return String(format: "$%.2fB", quoteVolume / 1_000_000_000)
-        } else if quoteVolume >= 1_000_000 {
-            return String(format: "$%.2fM", quoteVolume / 1_000_000)
-        } else if quoteVolume >= 1_000 {
-            return String(format: "$%.1fK", quoteVolume / 1_000)
+        formatVolumeValue(quoteVolume)
+    }
+
+    public var formattedQuoteVolume5m: String {
+        formatVolumeValue(quoteVolume5m)
+    }
+
+    public var formattedQuoteVolume15m: String {
+        formatVolumeValue(quoteVolume15m)
+    }
+
+    private func formatVolumeValue(_ value: Double) -> String {
+        if value >= 1_000_000_000 {
+            return String(format: "$%.2fB", value / 1_000_000_000)
+        } else if value >= 1_000_000 {
+            return String(format: "$%.2fM", value / 1_000_000)
+        } else if value >= 1_000 {
+            return String(format: "$%.1fK", value / 1_000)
+        } else if value > 0 {
+            return String(format: "$%.0f", value)
         } else {
-            return String(format: "$%.0f", quoteVolume)
+            return "--"
         }
     }
 
     private func formatPriceValue(_ value: Double) -> String {
+        guard value > 0 else { return "$0.00" }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+
         if value >= 1000 {
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
             formatter.minimumFractionDigits = 2
             formatter.maximumFractionDigits = 2
-            return "$" + (formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value))
         } else if value >= 1 {
-            return String(format: "$%.2f", value)
+            formatter.minimumFractionDigits = 2
+            formatter.maximumFractionDigits = 4
         } else {
-            return String(format: "$%.4f", value)
+            formatter.minimumFractionDigits = 2
+            formatter.maximumFractionDigits = 6
+        }
+
+        if let str = formatter.string(from: NSNumber(value: value)) {
+            return "$" + str
+        } else {
+            return String(format: "$%.2f", value)
         }
     }
 }
