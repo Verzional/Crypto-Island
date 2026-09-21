@@ -19,8 +19,8 @@ public final class BinanceService: ObservableObject {
     @Published public private(set) var flashDirection: PriceDirection?
 
     // Network & Endpoints
-    private let primaryWsBase = "wss://data-stream.binance.vision:9443/ws"
-    private let fallbackWsBase = "wss://stream.binance.com:9443/ws"
+    private let primaryWsBase = "wss://data-stream.binance.vision:9443"
+    private let fallbackWsBase = "wss://stream.binance.com:9443"
     private let primaryRestBase = "https://data-api.binance.vision/api/v3"
     private let fallbackRestBase = "https://api.binance.com/api/v3"
 
@@ -62,7 +62,24 @@ public final class BinanceService: ObservableObject {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         isConnected = false
-        ticker = nil
+        if let old = ticker {
+            ticker = TickerData(
+                symbol: currentSymbol.symbol,
+                price: old.price,
+                priceChange: old.priceChange,
+                priceChangePercent: old.priceChangePercent,
+                high24h: old.high24h,
+                low24h: old.low24h,
+                vwap: old.vwap,
+                volume: old.volume,
+                quoteVolume: old.quoteVolume,
+                volume5m: old.volume5m,
+                quoteVolume5m: old.quoteVolume5m,
+                takerBuyRatio5m: old.takerBuyRatio5m,
+                volume15m: old.volume15m,
+                quoteVolume15m: old.quoteVolume15m
+            )
+        }
         
         fetchInitialTicker()
         connectWebSocket()
@@ -98,6 +115,32 @@ public final class BinanceService: ObservableObject {
                     fetchInitialTicker()
                 }
             }
+
+            // Fetch initial 5m and 15m kline volume
+            await fetchInitialKlineVolume(interval: "5m")
+            await fetchInitialKlineVolume(interval: "15m")
+        }
+    }
+
+    private func fetchInitialKlineVolume(interval: String) async {
+        let symbol = currentSymbol.symbol
+        let baseUrl = useFallback ? fallbackRestBase : primaryRestBase
+        guard let url = URL(string: "\(baseUrl)/klines?symbol=\(symbol)&interval=\(interval)&limit=1") else { return }
+
+        if let (data, _) = try? await session.data(from: url),
+           let arr = try? JSONSerialization.jsonObject(with: data) as? [[Any]],
+           let first = arr.first, first.count > 7 {
+            let v = Double(first[5] as? String ?? "0") ?? 0
+            let q = Double(first[7] as? String ?? "0") ?? 0
+            let tbq = first.count > 10 ? (Double(first[10] as? String ?? "0") ?? 0) : 0
+            if interval == "5m" {
+                self.ticker?.volume5m = v
+                self.ticker?.quoteVolume5m = q
+                self.ticker?.takerBuyRatio5m = q > 0 ? (tbq / q) * 100 : 50.0
+            } else if interval == "15m" {
+                self.ticker?.volume15m = v
+                self.ticker?.quoteVolume15m = q
+            }
         }
     }
 
@@ -109,6 +152,7 @@ public final class BinanceService: ObservableObject {
         let priceChangePercent = Double(json["priceChangePercent"] as? String ?? "0") ?? 0
         let high = Double(json["highPrice"] as? String ?? "0") ?? 0
         let low = Double(json["lowPrice"] as? String ?? "0") ?? 0
+        let vwap = Double(json["weightedAvgPrice"] as? String ?? "0") ?? 0
         let volume = Double(json["volume"] as? String ?? "0") ?? 0
         let quoteVolume = Double(json["quoteVolume"] as? String ?? "0") ?? 0
 
@@ -119,6 +163,7 @@ public final class BinanceService: ObservableObject {
             priceChangePercent: priceChangePercent,
             high24h: high,
             low24h: low,
+            vwap: vwap,
             volume: volume,
             quoteVolume: quoteVolume,
             lastUpdated: Date(),
@@ -131,7 +176,8 @@ public final class BinanceService: ObservableObject {
         reconnectTimer?.invalidate()
         let symbolLower = currentSymbol.symbol.lowercased()
         let wsBase = useFallback ? fallbackWsBase : primaryWsBase
-        guard let url = URL(string: "\(wsBase)/\(symbolLower)@ticker") else { return }
+        let streamPath = "\(wsBase)/stream?streams=\(symbolLower)@ticker/\(symbolLower)@kline_5m/\(symbolLower)@kline_15m"
+        guard let url = URL(string: streamPath) else { return }
 
         webSocketTask = session.webSocketTask(with: url)
         webSocketTask?.resume()
@@ -172,6 +218,38 @@ public final class BinanceService: ObservableObject {
         guard let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
 
+        if let stream = json["stream"] as? String, let payload = json["data"] as? [String: Any] {
+            if stream.contains("@ticker") {
+                handleTickerData(payload)
+            } else if stream.contains("@kline_5m") {
+                handleKlineData(payload, interval: "5m")
+            } else if stream.contains("@kline_15m") {
+                handleKlineData(payload, interval: "15m")
+            }
+        } else {
+            handleTickerData(json)
+        }
+    }
+
+    private func handleKlineData(_ json: [String: Any], interval: String) {
+        guard let k = json["k"] as? [String: Any],
+              let vStr = k["v"] as? String, let v = Double(vStr),
+              let qStr = k["q"] as? String, let q = Double(qStr) else { return }
+
+        let tbqStr = k["Q"] as? String
+        let tbq = Double(tbqStr ?? "0") ?? 0
+
+        if interval == "5m" {
+            self.ticker?.volume5m = v
+            self.ticker?.quoteVolume5m = q
+            self.ticker?.takerBuyRatio5m = q > 0 ? (tbq / q) * 100 : 50.0
+        } else if interval == "15m" {
+            self.ticker?.volume15m = v
+            self.ticker?.quoteVolume15m = q
+        }
+    }
+
+    private func handleTickerData(_ json: [String: Any]) {
         guard let closePriceStr = json["c"] as? String,
               let closePrice = Double(closePriceStr) else { return }
 
@@ -179,6 +257,7 @@ public final class BinanceService: ObservableObject {
         let priceChangePercent = Double(json["P"] as? String ?? "0") ?? 0
         let high = Double(json["h"] as? String ?? "0") ?? 0
         let low = Double(json["l"] as? String ?? "0") ?? 0
+        let vwap = Double(json["w"] as? String ?? "0") ?? (self.ticker?.vwap ?? 0)
         let volume = Double(json["v"] as? String ?? "0") ?? 0
         let quoteVolume = Double(json["q"] as? String ?? "0") ?? 0
 
@@ -193,6 +272,12 @@ public final class BinanceService: ObservableObject {
             }
         }
 
+        let current5m = self.ticker?.volume5m ?? 0
+        let currentQuote5m = self.ticker?.quoteVolume5m ?? 0
+        let currentTakerBuyRatio5m = self.ticker?.takerBuyRatio5m ?? 50.0
+        let current15m = self.ticker?.volume15m ?? 0
+        let currentQuote15m = self.ticker?.quoteVolume15m ?? 0
+
         self.ticker = TickerData(
             symbol: currentSymbol.symbol,
             price: closePrice,
@@ -200,8 +285,14 @@ public final class BinanceService: ObservableObject {
             priceChangePercent: priceChangePercent,
             high24h: high,
             low24h: low,
+            vwap: vwap,
             volume: volume,
             quoteVolume: quoteVolume,
+            volume5m: current5m,
+            quoteVolume5m: currentQuote5m,
+            takerBuyRatio5m: currentTakerBuyRatio5m,
+            volume15m: current15m,
+            quoteVolume15m: currentQuote15m,
             lastUpdated: Date(),
             direction: direction
         )
