@@ -1,5 +1,75 @@
 import SwiftUI
 
+/// "U" notch shape: flat top against bezel, rounded bottom corners.
+public struct NotchShape: Shape {
+    public var bottomRadius: CGFloat
+
+    public var animatableData: CGFloat {
+        get { bottomRadius }
+        set { bottomRadius = newValue }
+    }
+
+    public func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - bottomRadius))
+        path.addArc(
+            center: CGPoint(x: rect.maxX - bottomRadius, y: rect.maxY - bottomRadius),
+            radius: bottomRadius,
+            startAngle: .degrees(0),
+            endAngle: .degrees(90),
+            clockwise: false
+        )
+        path.addLine(to: CGPoint(x: rect.minX + bottomRadius, y: rect.maxY))
+        path.addArc(
+            center: CGPoint(x: rect.minX + bottomRadius, y: rect.maxY - bottomRadius),
+            radius: bottomRadius,
+            startAngle: .degrees(90),
+            endAngle: .degrees(180),
+            clockwise: false
+        )
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// Outline for the "U" shape: strokes left, bottom, and right, leaving top open to blend into bezel.
+public struct NotchOutline: Shape {
+    public var bottomRadius: CGFloat
+
+    public var animatableData: CGFloat {
+        get { bottomRadius }
+        set { bottomRadius = newValue }
+    }
+
+    public func path(in rect: CGRect) -> Path {
+        let inset: CGFloat = 0.5
+        let r = max(1, bottomRadius - inset)
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + inset, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX + inset, y: rect.maxY - r - inset))
+        path.addArc(
+            center: CGPoint(x: rect.minX + inset + r, y: rect.maxY - r - inset),
+            radius: r,
+            startAngle: .degrees(180),
+            endAngle: .degrees(90),
+            clockwise: true
+        )
+        path.addLine(to: CGPoint(x: rect.maxX - inset - r, y: rect.maxY - inset))
+        path.addArc(
+            center: CGPoint(x: rect.maxX - inset - r, y: rect.maxY - r - inset),
+            radius: r,
+            startAngle: .degrees(90),
+            endAngle: .degrees(0),
+            clockwise: true
+        )
+        path.addLine(to: CGPoint(x: rect.maxX - inset, y: rect.minY))
+        return path
+    }
+}
+
 /// The SwiftUI view representing the macOS Dynamic Island for crypto prices.
 public struct DynamicIslandView: View {
     @ObservedObject var binanceService: BinanceService
@@ -9,6 +79,13 @@ public struct DynamicIslandView: View {
     @State private var showingCustomInput: Bool = false
     @State private var customSymbolText: String = ""
     @State private var isHovered: Bool = false
+    @State private var isCollapsing: Bool = false
+    @State private var expandWorkItem: DispatchWorkItem?
+    @State private var collapseWorkItem: DispatchWorkItem?
+
+    private var geometry: NotchGeometry {
+        NotchGeometry.current()
+    }
 
     public init(
         binanceService: BinanceService,
@@ -21,110 +98,137 @@ public struct DynamicIslandView: View {
     }
 
     public var body: some View {
-        ZStack {
-            if isExpanded {
-                expandedView
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.95, anchor: .top)),
-                        removal: .opacity.combined(with: .scale(scale: 0.95, anchor: .top))
-                    ))
-            } else {
-                collapsedView
-                    .transition(.opacity)
+        ZStack(alignment: .top) {
+            ZStack(alignment: .top) {
+                if isExpanded {
+                    expandedView
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity.combined(with: .offset(y: -10)),
+                                removal: .opacity.combined(with: .offset(y: -6))
+                            )
+                        )
+                } else {
+                    collapsedView
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                }
             }
+            .frame(
+                width: isExpanded ? geometry.expandedWidth : geometry.collapsedWidth,
+                height: isExpanded ? geometry.expandedHeight : geometry.collapsedHeight,
+                alignment: .top
+            )
+            .background(
+                ZStack {
+                    if geometry.hasNotch {
+                        NotchShape(bottomRadius: isExpanded ? 20 : 10)
+                            .fill(Color.black)
+                    } else {
+                        RoundedRectangle(cornerRadius: isExpanded ? 20 : 17, style: .continuous)
+                            .fill(Color.black)
+                    }
+                }
+            )
+            .overlay(
+                ZStack {
+                    if geometry.hasNotch {
+                        NotchOutline(bottomRadius: isExpanded ? 20 : 10)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    } else {
+                        RoundedRectangle(cornerRadius: isExpanded ? 20 : 17, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    }
+                }
+            )
+            .clipShape(
+                geometry.hasNotch
+                    ? AnyShape(NotchShape(bottomRadius: isExpanded ? 20 : 10))
+                    : AnyShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 17, style: .continuous))
+            )
+            .shadow(color: Color.black.opacity(isExpanded ? 0.35 : 0.0), radius: isExpanded ? 12 : 0, x: 0, y: isExpanded ? 6 : 0)
         }
-        .frame(
-            width: isExpanded ? 400 : (settings.stealthMode && !isHovered ? 140 : 230),
-            height: isExpanded ? 180 : (settings.stealthMode && !isHovered ? 16 : 38)
-        )
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: isExpanded ? 30 : 19, style: .continuous)
-                    .fill(Color.black.opacity(settings.stealthMode && !isHovered && !isExpanded ? 0.25 : 0.92))
-                
-                RoundedRectangle(cornerRadius: isExpanded ? 30 : 19, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(isExpanded ? 0.22 : 0.15),
-                                Color.white.opacity(0.05)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 1
-                    )
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 30 : 19, style: .continuous))
-        .shadow(color: Color.black.opacity(isExpanded ? 0.5 : 0.3), radius: isExpanded ? 20 : 10, x: 0, y: 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onHover { hovering in
             isHovered = hovering
             if hovering {
+                collapseWorkItem?.cancel()
+                collapseWorkItem = nil
+
                 if !isExpanded {
-                    withAnimation(.spring(response: 0.36, dampingFraction: 0.76)) {
-                        isExpanded = true
-                    }
-                }
-            } else {
-                if !settings.isPinned {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + settings.autoCollapseDelay) {
-                        if !isHovered && !settings.isPinned && !showingCustomInput {
-                            withAnimation(.spring(response: 0.36, dampingFraction: 0.76)) {
-                                isExpanded = false
-                            }
+                    expandWorkItem?.cancel()
+                    let work = DispatchWorkItem {
+                        guard isHovered && !isExpanded else { return }
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            isExpanded = true
                         }
                     }
+                    expandWorkItem = work
+                    let delay: Double = isCollapsing ? 0.35 : 0.08
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
                 }
+            } else {
+                expandWorkItem?.cancel()
+                expandWorkItem = nil
+
+                guard isExpanded else { return }
+
+                collapseWorkItem?.cancel()
+                let work = DispatchWorkItem {
+                    guard !isHovered && !showingCustomInput && isExpanded else { return }
+                    isCollapsing = true
+                    withAnimation(.spring(response: 0.30, dampingFraction: 0.86)) {
+                        isExpanded = false
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        isCollapsing = false
+                    }
+                }
+                collapseWorkItem = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
             }
         }
-        .animation(.spring(response: 0.38, dampingFraction: 0.78), value: isExpanded)
-        .animation(.spring(response: 0.38, dampingFraction: 0.78), value: isHovered)
+        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
         .animation(.easeInOut(duration: 0.2), value: binanceService.flashDirection)
     }
 
     // MARK: - Collapsed View
     private var collapsedView: some View {
-        HStack(spacing: 8) {
-            if settings.stealthMode && !isHovered {
-                // Sleek minimal indicator in stealth mode
-                Circle()
-                    .fill(liveColor)
-                    .frame(width: 6, height: 6)
-                Text(binanceService.currentSymbol.baseAsset)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.8))
+        HStack(spacing: 0) {
+            // Left Ear: Symbol (no green dot)
+            Text(binanceService.currentSymbol.baseAsset)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .frame(width: geometry.earWidth, alignment: .center)
+
+            // Center: Gap matching physical camera notch
+            if geometry.hasNotch {
+                Color.clear
+                    .frame(width: geometry.notchWidth, height: geometry.collapsedHeight)
             } else {
-                // Regular compact island
-                Image(systemName: binanceService.currentSymbol.iconSymbol)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(liveColor)
+                Spacer(minLength: 8)
+            }
 
-                Text(binanceService.currentSymbol.baseAsset)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-
-                Spacer(minLength: 4)
-
+            // Right Ear: Price (no green dot)
+            HStack(spacing: 6) {
                 if let ticker = binanceService.ticker {
                     Text(ticker.formattedPrice)
                         .font(.system(size: 13, weight: .semibold, design: .monospaced))
                         .foregroundColor(flashColor(for: ticker))
-
-                    Circle()
-                        .fill(liveColor)
-                        .frame(width: 6, height: 6)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 } else {
                     ProgressView()
                         .scaleEffect(0.5)
                         .frame(width: 14, height: 14)
                 }
             }
+            .frame(width: geometry.earWidth, alignment: .center)
         }
-        .padding(.horizontal, 12)
+        .frame(height: geometry.collapsedHeight)
         .contentShape(Rectangle())
         .onTapGesture {
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.76)) {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                 isExpanded.toggle()
             }
         }
@@ -132,106 +236,61 @@ public struct DynamicIslandView: View {
 
     // MARK: - Expanded View
     private var expandedView: some View {
-        VStack(spacing: 10) {
-            // Header Row
-            HStack(alignment: .center, spacing: 8) {
-                Image(systemName: binanceService.currentSymbol.iconSymbol)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(liveColor)
-
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 4) {
-                        Text(binanceService.currentSymbol.baseAsset)
-                            .font(.system(size: 14, weight: .heavy, design: .rounded))
-                            .foregroundColor(.white)
-                        Text("/ " + binanceService.currentSymbol.quoteAsset)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.gray)
-                    }
-                    Text(binanceService.currentSymbol.name)
-                        .font(.system(size: 10, weight: .regular))
-                        .foregroundColor(.white.opacity(0.6))
+        VStack(spacing: 6) {
+            // Header Row: Coin Info + Top Right Search Button
+            HStack(alignment: .center) {
+                HStack(spacing: 4) {
+                    Text(binanceService.currentSymbol.baseAsset)
+                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        .foregroundColor(.white)
+                    Text("/ " + binanceService.currentSymbol.quoteAsset)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.gray)
                 }
 
                 Spacer()
 
-                // Live status dot
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(binanceService.isConnected ? Color.green : Color.orange)
-                        .frame(width: 6, height: 6)
-                    Text(binanceService.isConnected ? "BINANCE LIVE" : "CONNECTING")
-                        .font(.system(size: 9, weight: .heavy))
-                        .foregroundColor(binanceService.isConnected ? .green.opacity(0.9) : .orange.opacity(0.9))
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color.white.opacity(0.06))
-                .clipShape(Capsule())
-
-                // Pin toggle button
+                // Top Right Search Button
                 Button {
-                    settings.isPinned.toggle()
+                    showingCustomInput.toggle()
                 } label: {
-                    Image(systemName: settings.isPinned ? "pin.fill" : "pin")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(settings.isPinned ? .yellow : .white.opacity(0.6))
-                        .padding(5)
-                        .background(Color.white.opacity(settings.isPinned ? 0.15 : 0.05))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help(settings.isPinned ? "Unpin (auto-collapse when mouse leaves)" : "Pin Island open")
-
-                // Stealth mode toggle
-                Button {
-                    settings.stealthMode.toggle()
-                } label: {
-                    Image(systemName: settings.stealthMode ? "eye.slash.fill" : "eye.fill")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(settings.stealthMode ? .cyan : .white.opacity(0.6))
-                        .padding(5)
-                        .background(Color.white.opacity(settings.stealthMode ? 0.15 : 0.05))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Stealth mode: hides collapsed pill until hovered")
-
-                // Collapse button
-                Button {
-                    withAnimation(.spring(response: 0.36, dampingFraction: 0.76)) {
-                        isExpanded = false
+                    HStack(spacing: 4) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Search")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
                     }
-                } label: {
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white.opacity(0.6))
-                        .padding(5)
-                        .background(Color.white.opacity(0.05))
-                        .clipShape(Circle())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.08))
+                    .foregroundColor(.white.opacity(0.85))
+                    .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .popover(isPresented: $showingCustomInput) {
+                    customSymbolInputView
+                }
             }
 
             // Price & 24h Change Row
             if let ticker = binanceService.ticker {
-                HStack(alignment: .lastTextBaseline, spacing: 10) {
+                HStack(alignment: .lastTextBaseline, spacing: 8) {
                     Text(ticker.formattedPrice)
-                        .font(.system(size: 26, weight: .bold, design: .monospaced))
+                        .font(.system(size: 18, weight: .bold, design: .monospaced))
                         .foregroundColor(flashColor(for: ticker))
-                        .animation(.easeInOut(duration: 0.25), value: binanceService.flashDirection)
+                        .animation(.easeInOut(duration: 0.2), value: binanceService.flashDirection)
 
                     Spacer()
 
                     // Change Badge
                     HStack(spacing: 3) {
                         Image(systemName: ticker.priceChangePercent >= 0 ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                         Text(ticker.formattedChangePercent)
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
                     .background(
                         (ticker.priceChangePercent >= 0 ? Color.green : Color.red).opacity(0.2)
                     )
@@ -239,86 +298,79 @@ public struct DynamicIslandView: View {
                     .clipShape(Capsule())
                 }
 
-                // 24h Stats Row
-                HStack(spacing: 12) {
-                    statColumn(title: "24h High", value: ticker.formattedHigh)
-                    Divider().frame(height: 18).background(Color.white.opacity(0.15))
-                    statColumn(title: "24h Low", value: ticker.formattedLow)
-                    Divider().frame(height: 18).background(Color.white.opacity(0.15))
-                    statColumn(title: "24h Vol", value: ticker.formattedQuoteVolume)
+                // 2-Row Stats Grid: Key Levels & Flow/Momentum
+                VStack(spacing: 5) {
+                    // Row 1: Key Levels & Institutional Benchmark
+                    HStack(spacing: 8) {
+                        statColumn(title: "24h High", value: ticker.formattedHigh)
+                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
+                        statColumn(title: "24h Low", value: ticker.formattedLow)
+                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
+                        statColumn(title: "VWAP", value: ticker.formattedVWAP)
+                    }
+
+                    Divider().background(Color.white.opacity(0.08))
+
+                    // Row 2: Real-time Flow & Taker Buy Pressure
+                    HStack(spacing: 8) {
+                        statColumn(title: "15m Vol", value: ticker.formattedQuoteVolume15m)
+                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
+                        statColumn(title: "5m Vol", value: ticker.formattedQuoteVolume5m)
+                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
+                        statColumn(
+                            title: "5m Buy %",
+                            value: ticker.formattedTakerBuyRatio5m,
+                            valueColor: buyRatioColor(ticker.takerBuyRatio5m)
+                        )
+                    }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
+                )
             } else {
                 HStack {
                     ProgressView()
-                        .scaleEffect(0.8)
+                        .scaleEffect(0.7)
                     Text("Fetching Binance data...")
-                        .font(.system(size: 12))
+                        .font(.system(size: 11))
                         .foregroundColor(.gray)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, 8)
-            }
-
-            // Quick Coin Switcher Pills
-            HStack(spacing: 6) {
-                ForEach(CryptoSymbol.presets.prefix(5)) { symbol in
-                    Button {
-                        binanceService.selectSymbol(symbol)
-                    } label: {
-                        Text(symbol.baseAsset)
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                binanceService.currentSymbol.symbol == symbol.symbol
-                                    ? Color.white.opacity(0.25)
-                                    : Color.white.opacity(0.06)
-                            )
-                            .foregroundColor(
-                                binanceService.currentSymbol.symbol == symbol.symbol
-                                    ? .white
-                                    : .white.opacity(0.7)
-                            )
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                // Add / Custom symbol button
-                Button {
-                    showingCustomInput.toggle()
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 10, weight: .bold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.08))
-                        .foregroundColor(.white.opacity(0.8))
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showingCustomInput) {
-                    customSymbolInputView
-                }
+                .padding(.vertical, 6)
             }
         }
-        .padding(14)
+        .padding(.top, geometry.hasNotch ? (geometry.notchHeight + 4) : 10)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 12)
     }
 
-    private func statColumn(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+    private func statColumn(title: String, value: String, valueColor: Color = .white.opacity(0.92)) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 9, weight: .medium))
                 .foregroundColor(.gray)
             Text(value)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundColor(.white.opacity(0.9))
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundColor(valueColor)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func buyRatioColor(_ ratio: Double) -> Color {
+        if ratio >= 52.0 {
+            return .green
+        } else if ratio <= 48.0 {
+            return .red
+        } else {
+            return .white.opacity(0.92)
+        }
     }
 
     // MARK: - Custom Symbol Input View
