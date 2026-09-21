@@ -79,6 +79,8 @@ public struct DynamicIslandView: View {
     @State private var showingCustomInput: Bool = false
     @State private var customSymbolText: String = ""
     @State private var isHovered: Bool = false
+    @State private var isSearchHovered: Bool = false
+    @FocusState private var isSearchFocused: Bool
     @State private var isCollapsing: Bool = false
     @State private var expandWorkItem: DispatchWorkItem?
     @State private var collapseWorkItem: DispatchWorkItem?
@@ -141,47 +143,48 @@ public struct DynamicIslandView: View {
                     : AnyShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 17, style: .continuous))
             )
             .shadow(color: Color.black.opacity(isExpanded ? 0.35 : 0.0), radius: isExpanded ? 12 : 0, x: 0, y: isExpanded ? 6 : 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                collapseWorkItem?.cancel()
-                collapseWorkItem = nil
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                isHovered = hovering
+                if hovering {
+                    collapseWorkItem?.cancel()
+                    collapseWorkItem = nil
 
-                if !isExpanded {
+                    if !isExpanded {
+                        expandWorkItem?.cancel()
+                        let work = DispatchWorkItem {
+                            guard isHovered && !isExpanded else { return }
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                                isExpanded = true
+                            }
+                        }
+                        expandWorkItem = work
+                        let delay: Double = isCollapsing ? 0.35 : 0.08
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+                    }
+                } else {
                     expandWorkItem?.cancel()
+                    expandWorkItem = nil
+
+                    guard isExpanded else { return }
+
+                    collapseWorkItem?.cancel()
                     let work = DispatchWorkItem {
-                        guard isHovered && !isExpanded else { return }
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                            isExpanded = true
+                        guard !isHovered && !showingCustomInput && isExpanded else { return }
+                        isCollapsing = true
+                        withAnimation(.spring(response: 0.30, dampingFraction: 0.86)) {
+                            isExpanded = false
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            isCollapsing = false
                         }
                     }
-                    expandWorkItem = work
-                    let delay: Double = isCollapsing ? 0.35 : 0.08
-                    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+                    collapseWorkItem = work
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
                 }
-            } else {
-                expandWorkItem?.cancel()
-                expandWorkItem = nil
-
-                guard isExpanded else { return }
-
-                collapseWorkItem?.cancel()
-                let work = DispatchWorkItem {
-                    guard !isHovered && !showingCustomInput && isExpanded else { return }
-                    isCollapsing = true
-                    withAnimation(.spring(response: 0.30, dampingFraction: 0.86)) {
-                        isExpanded = false
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        isCollapsing = false
-                    }
-                }
-                collapseWorkItem = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
         .animation(.easeInOut(duration: 0.2), value: binanceService.flashDirection)
     }
@@ -211,7 +214,7 @@ public struct DynamicIslandView: View {
                         .font(.system(size: 13, weight: .semibold, design: .monospaced))
                         .foregroundColor(flashColor(for: ticker))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.85)
+                        .minimumScaleFactor(0.70)
                 } else {
                     ProgressView()
                         .scaleEffect(0.5)
@@ -234,14 +237,17 @@ public struct DynamicIslandView: View {
         Group {
             if geometry.hasNotch {
                 HStack(spacing: 0) {
-                    // Left Ear: Coin Title (aligned with 14pt left margin, matched to 22pt pill height)
-                    HStack(alignment: .lastTextBaseline, spacing: 4) {
-                        Text(binanceService.currentSymbol.baseAsset)
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                        Text("/ " + binanceService.currentSymbol.quoteAsset)
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundColor(.gray)
+                    // Left Ear: Coin Title + Favorite Star
+                    HStack(alignment: .center, spacing: 5) {
+                        HStack(alignment: .lastTextBaseline, spacing: 4) {
+                            Text(binanceService.currentSymbol.baseAsset)
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                            Text("/ " + binanceService.currentSymbol.quoteAsset)
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .foregroundColor(.gray)
+                        }
+                        favoriteStarButton
                     }
                     .padding(.leading, 14)
                     .frame(width: (geometry.expandedWidth - geometry.notchWidth) / 2, height: 22, alignment: .leading)
@@ -261,13 +267,16 @@ public struct DynamicIslandView: View {
                 .frame(height: geometry.collapsedHeight)
             } else {
                 HStack(alignment: .center) {
-                    HStack(alignment: .lastTextBaseline, spacing: 4) {
-                        Text(binanceService.currentSymbol.baseAsset)
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                        Text("/ " + binanceService.currentSymbol.quoteAsset)
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundColor(.gray)
+                    HStack(alignment: .center, spacing: 5) {
+                        HStack(alignment: .lastTextBaseline, spacing: 4) {
+                            Text(binanceService.currentSymbol.baseAsset)
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                            Text("/ " + binanceService.currentSymbol.quoteAsset)
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .foregroundColor(.gray)
+                        }
+                        favoriteStarButton
                     }
                     .padding(.leading, 14)
                     .offset(y: 2)
@@ -282,23 +291,64 @@ public struct DynamicIslandView: View {
         }
     }
 
+    private var favoriteStarButton: some View {
+        let isFav = settings.isFavorite(binanceService.currentSymbol.symbol)
+        return Button {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                settings.toggleFavorite(binanceService.currentSymbol.symbol)
+            }
+        } label: {
+            Image(systemName: isFav ? "star.fill" : "star")
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundColor(isFav ? .yellow : .white.opacity(0.35))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isFav ? "Remove from Favorites" : "Add to Favorites (Max 9)")
+    }
+
     private var searchButton: some View {
         Button {
             showingCustomInput.toggle()
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundColor(.white.opacity(isSearchHovered || showingCustomInput ? 1.0 : 0.8))
                 Text("Search")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white.opacity(isSearchHovered || showingCustomInput ? 1.0 : 0.85))
             }
             .frame(width: 68, height: 22)
-            .background(Color.white.opacity(0.10))
-            .foregroundColor(.white.opacity(0.85))
+            .background(
+                LinearGradient(
+                    colors: showingCustomInput
+                        ? [Color.white.opacity(0.24), Color.white.opacity(0.15)]
+                        : isSearchHovered
+                            ? [Color.white.opacity(0.18), Color.white.opacity(0.10)]
+                            : [Color.white.opacity(0.12), Color.white.opacity(0.06)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
             .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(
+                        showingCustomInput
+                            ? Color.white.opacity(0.35)
+                            : isSearchHovered
+                                ? Color.white.opacity(0.25)
+                                : Color.white.opacity(0.15),
+                        lineWidth: 0.8
+                    )
+            )
         }
         .buttonStyle(.plain)
-        .popover(isPresented: $showingCustomInput) {
+        .onHover { hovering in
+            isSearchHovered = hovering
+        }
+        .popover(isPresented: $showingCustomInput, arrowEdge: .bottom) {
             customSymbolInputView
         }
     }
@@ -398,6 +448,8 @@ public struct DynamicIslandView: View {
             Text(value)
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
                 .foregroundColor(valueColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -414,30 +466,117 @@ public struct DynamicIslandView: View {
 
     // MARK: - Custom Symbol Input View
     private var customSymbolInputView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Search Binance Pair")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.primary)
+        VStack(alignment: .leading, spacing: 11) {
+            // Header (clean, no duplicate search icon)
+            HStack(alignment: .center) {
+                Text("Switch Pair")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
 
-            HStack {
-                TextField("e.g. SOL, PEPE, SUI", text: $customSymbolText)
-                    .textFieldStyle(.roundedBorder)
+                Spacer()
+
+                Text(binanceService.currentSymbol.symbol)
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.white.opacity(0.1))
+                    .foregroundColor(.white.opacity(0.75))
+                    .clipShape(Capsule())
+            }
+
+            // Sleek Search Input Bar
+            HStack(spacing: 7) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.gray)
+
+                TextField("Symbol (e.g. SOL, SUI)", text: $customSymbolText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .focused($isSearchFocused)
                     .onSubmit {
                         commitCustomSymbol()
                     }
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(Color.white.opacity(0.08))
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSearchFocused ? Color.white.opacity(0.3) : Color.white.opacity(0.12), lineWidth: 0.8)
+            )
 
-                Button("Go") {
-                    commitCustomSymbol()
+            // Favorites Grid (Dynamic user favorites, max 9)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("FAVORITES")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundColor(.gray)
+                        .tracking(0.5)
+
+                    Spacer()
+
+                    Text("\(settings.favorites.count)/9")
+                        .font(.system(size: 8.5, weight: .medium, design: .monospaced))
+                        .foregroundColor(.gray.opacity(0.7))
                 }
-                .buttonStyle(.borderedProminent)
+
+                if settings.favorites.isEmpty {
+                    Text("Star coins in the island (★) to save them here")
+                        .font(.system(size: 10))
+                        .foregroundColor(.gray)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 8)
+                } else {
+                    let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
+                    LazyVGrid(columns: columns, spacing: 6) {
+                        ForEach(settings.favorites, id: \.self) { favString in
+                            let preset = CryptoSymbol.from(rawInput: favString)
+                            let isCurrent = preset.symbol == binanceService.currentSymbol.symbol
+                            Button {
+                                binanceService.selectSymbol(preset)
+                                customSymbolText = ""
+                                showingCustomInput = false
+                            } label: {
+                                Text(preset.baseAsset)
+                                    .font(.system(size: 11, weight: isCurrent ? .bold : .medium, design: .rounded))
+                                    .foregroundColor(isCurrent ? .white : .white.opacity(0.85))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        isCurrent
+                                            ? Color.white.opacity(0.20)
+                                            : Color.white.opacity(0.07)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .stroke(
+                                                isCurrent ? Color.white.opacity(0.35) : Color.white.opacity(0.1),
+                                                lineWidth: 0.8
+                                            )
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
             }
 
-            Text("Automatically appends USDT if omitted")
-                .font(.system(size: 10))
+            // Helper text (clean, no bullet dot)
+            Text("Auto-appends USDT if omitted")
+                .font(.system(size: 9.5))
                 .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding()
-        .frame(width: 220)
+        .padding(12)
+        .frame(width: 250)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isSearchFocused = true
+            }
+        }
     }
 
     private func commitCustomSymbol() {
