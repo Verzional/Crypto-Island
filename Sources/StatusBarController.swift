@@ -59,6 +59,20 @@ public final class StatusBarController: NSObject {
                 self?.rebuildMenu()
             }
             .store(in: &cancellables)
+
+        settings.$favorites
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.rebuildMenu()
+            }
+            .store(in: &cancellables)
+
+        islandController.$isExpanded
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.rebuildMenu()
+            }
+            .store(in: &cancellables)
     }
 
     private func updateStatusItemTitle() {
@@ -74,19 +88,35 @@ public final class StatusBarController: NSObject {
     private func rebuildMenu() {
         let menu = NSMenu()
 
-        // Toggle Island
-        let toggleItem = NSMenuItem(
-            title: islandController.isExpanded ? "Collapse Island" : "Expand Island",
-            action: #selector(toggleIsland),
-            keyEquivalent: "i"
-        )
-        toggleItem.target = self
-        menu.addItem(toggleItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Coins Submenu
+        // 1. Select Coin Submenu at the very top
         let coinsMenu = NSMenu()
+
+        // User Favorites first (if any)
+        if !settings.favorites.isEmpty {
+            let favHeader = NSMenuItem(title: "Favorites", action: nil, keyEquivalent: "")
+            favHeader.isEnabled = false
+            coinsMenu.addItem(favHeader)
+
+            for fav in settings.favorites {
+                let sym = CryptoSymbol.from(rawInput: fav)
+                let item = NSMenuItem(
+                    title: "\(sym.baseAsset) / \(sym.quoteAsset)",
+                    action: #selector(selectCoin(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.representedObject = sym
+                item.state = (sym.symbol == binanceService.currentSymbol.symbol) ? .on : .off
+                coinsMenu.addItem(item)
+            }
+            coinsMenu.addItem(NSMenuItem.separator())
+        }
+
+        // Popular Presets
+        let popularHeader = NSMenuItem(title: "Popular Pairs", action: nil, keyEquivalent: "")
+        popularHeader.isEnabled = false
+        coinsMenu.addItem(popularHeader)
+
         for preset in CryptoSymbol.presets {
             let item = NSMenuItem(
                 title: "\(preset.baseAsset) - \(preset.name)",
@@ -98,27 +128,37 @@ public final class StatusBarController: NSObject {
             item.state = (preset.symbol == binanceService.currentSymbol.symbol) ? .on : .off
             coinsMenu.addItem(item)
         }
+
         let coinsMenuItem = NSMenuItem(title: "Select Coin", action: nil, keyEquivalent: "")
         coinsMenuItem.submenu = coinsMenu
         menu.addItem(coinsMenuItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        // Pin Option
+        // 2. Toggle Island
+        let toggleItem = NSMenuItem(
+            title: islandController.isExpanded ? "Collapse Island" : "Expand Island",
+            action: #selector(toggleIsland),
+            keyEquivalent: ""
+        )
+        toggleItem.target = self
+        menu.addItem(toggleItem)
+
+        // 3. Pin Option
         let pinItem = NSMenuItem(
             title: "Pin Island Open",
             action: #selector(togglePin),
-            keyEquivalent: "p"
+            keyEquivalent: ""
         )
         pinItem.target = self
         pinItem.state = settings.isPinned ? .on : .off
         menu.addItem(pinItem)
 
-        // Stealth Mode Option
+        // 4. Stealth Mode Option
         let stealthItem = NSMenuItem(
             title: "Stealth Mode (Show Only on Hover)",
             action: #selector(toggleStealth),
-            keyEquivalent: "s"
+            keyEquivalent: ""
         )
         stealthItem.target = self
         stealthItem.state = settings.stealthMode ? .on : .off
@@ -126,11 +166,11 @@ public final class StatusBarController: NSObject {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Quit
+        // 5. Quit
         let quitItem = NSMenuItem(
             title: "Quit CryptoIsland",
             action: #selector(quitApp),
-            keyEquivalent: "q"
+            keyEquivalent: ""
         )
         quitItem.target = self
         menu.addItem(quitItem)
@@ -151,11 +191,15 @@ public final class StatusBarController: NSObject {
 
     @objc private func togglePin() {
         settings.isPinned.toggle()
+        if settings.isPinned && !islandController.isExpanded {
+            islandController.toggleExpansion()
+        }
+        rebuildMenu()
     }
 
     @objc private func toggleStealth() {
         settings.stealthMode.toggle()
-        islandController.updatePanelFrame(animated: true)
+        rebuildMenu()
     }
 
     @objc private func quitApp() {
