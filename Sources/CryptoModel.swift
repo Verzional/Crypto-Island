@@ -187,15 +187,19 @@ public struct TickerData: Equatable {
         } else if value >= 1 {
             formatter.minimumFractionDigits = 2
             formatter.maximumFractionDigits = 4
-        } else {
+        } else if value >= 0.01 {
             formatter.minimumFractionDigits = 2
             formatter.maximumFractionDigits = 6
+        } else {
+            // For sub-cent & micro-cap tokens (e.g. PEPE, SHIB) supporting up to 8 decimals
+            formatter.minimumFractionDigits = 2
+            formatter.maximumFractionDigits = 8
         }
 
         if let str = formatter.string(from: NSNumber(value: value)) {
             return "$" + str
         } else {
-            return String(format: "$%.2f", value)
+            return String(format: "$%.8f", value)
         }
     }
 }
