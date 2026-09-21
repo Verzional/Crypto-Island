@@ -102,15 +102,10 @@ public struct DynamicIslandView: View {
             ZStack(alignment: .top) {
                 if isExpanded {
                     expandedView
-                        .transition(
-                            .asymmetric(
-                                insertion: .opacity.combined(with: .offset(y: -10)),
-                                removal: .opacity.combined(with: .offset(y: -6))
-                            )
-                        )
+                        .transition(.opacity)
                 } else {
                     collapsedView
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                        .transition(.opacity)
                 }
             }
             .frame(
@@ -235,120 +230,164 @@ public struct DynamicIslandView: View {
     }
 
     // MARK: - Expanded View
-    private var expandedView: some View {
-        VStack(spacing: 6) {
-            // Header Row: Coin Info + Top Right Search Button
-            HStack(alignment: .center) {
-                HStack(spacing: 4) {
-                    Text(binanceService.currentSymbol.baseAsset)
-                        .font(.system(size: 14, weight: .heavy, design: .rounded))
-                        .foregroundColor(.white)
-                    Text("/ " + binanceService.currentSymbol.quoteAsset)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.gray)
-                }
-
-                Spacer()
-
-                // Top Right Search Button
-                Button {
-                    showingCustomInput.toggle()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 10, weight: .bold))
-                        Text("Search")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+    private var expandedTopBar: some View {
+        Group {
+            if geometry.hasNotch {
+                HStack(spacing: 0) {
+                    // Left Ear: Coin Title (aligned with 14pt left margin, matched to 22pt pill height)
+                    HStack(alignment: .lastTextBaseline, spacing: 4) {
+                        Text(binanceService.currentSymbol.baseAsset)
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                        Text("/ " + binanceService.currentSymbol.quoteAsset)
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundColor(.gray)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.08))
-                    .foregroundColor(.white.opacity(0.85))
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showingCustomInput) {
-                    customSymbolInputView
-                }
-            }
+                    .padding(.leading, 14)
+                    .frame(width: (geometry.expandedWidth - geometry.notchWidth) / 2, height: 22, alignment: .leading)
+                    .offset(y: 2)
 
-            // Price & 24h Change Row
-            if let ticker = binanceService.ticker {
-                HStack(alignment: .lastTextBaseline, spacing: 8) {
-                    Text(ticker.formattedPrice)
-                        .font(.system(size: 18, weight: .bold, design: .monospaced))
-                        .foregroundColor(flashColor(for: ticker))
-                        .animation(.easeInOut(duration: 0.2), value: binanceService.flashDirection)
+                    // Center: Gap matching physical camera notch
+                    Color.clear
+                        .frame(width: geometry.notchWidth, height: geometry.collapsedHeight)
+
+                    // Right Ear: Search Button (aligned with 14pt right margin)
+                    HStack {
+                        searchButton
+                    }
+                    .padding(.trailing, 14)
+                    .frame(width: (geometry.expandedWidth - geometry.notchWidth) / 2, height: 22, alignment: .trailing)
+                }
+                .frame(height: geometry.collapsedHeight)
+            } else {
+                HStack(alignment: .center) {
+                    HStack(alignment: .lastTextBaseline, spacing: 4) {
+                        Text(binanceService.currentSymbol.baseAsset)
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                        Text("/ " + binanceService.currentSymbol.quoteAsset)
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.leading, 14)
+                    .offset(y: 2)
 
                     Spacer()
 
-                    // Change Badge
-                    HStack(spacing: 3) {
-                        Image(systemName: ticker.priceChangePercent >= 0 ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 9, weight: .bold))
-                        Text(ticker.formattedChangePercent)
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    }
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(
-                        (ticker.priceChangePercent >= 0 ? Color.green : Color.red).opacity(0.2)
-                    )
-                    .foregroundColor(ticker.priceChangePercent >= 0 ? .green : .red)
-                    .clipShape(Capsule())
+                    searchButton
+                        .padding(.trailing, 14)
                 }
-
-                // 2-Row Stats Grid: Key Levels & Flow/Momentum
-                VStack(spacing: 5) {
-                    // Row 1: Key Levels & Institutional Benchmark
-                    HStack(spacing: 8) {
-                        statColumn(title: "24h High", value: ticker.formattedHigh)
-                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
-                        statColumn(title: "24h Low", value: ticker.formattedLow)
-                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
-                        statColumn(title: "VWAP", value: ticker.formattedVWAP)
-                    }
-
-                    Divider().background(Color.white.opacity(0.08))
-
-                    // Row 2: Real-time Flow & Taker Buy Pressure
-                    HStack(spacing: 8) {
-                        statColumn(title: "15m Vol", value: ticker.formattedQuoteVolume15m)
-                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
-                        statColumn(title: "5m Vol", value: ticker.formattedQuoteVolume5m)
-                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
-                        statColumn(
-                            title: "5m Buy %",
-                            value: ticker.formattedTakerBuyRatio5m,
-                            valueColor: buyRatioColor(ticker.takerBuyRatio5m)
-                        )
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.white.opacity(0.08))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
-                )
-            } else {
-                HStack {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                    Text("Fetching Binance data...")
-                        .font(.system(size: 11))
-                        .foregroundColor(.gray)
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, 6)
+                .frame(height: geometry.collapsedHeight)
             }
         }
-        .padding(.top, geometry.hasNotch ? (geometry.notchHeight + 4) : 10)
-        .padding(.horizontal, 14)
-        .padding(.bottom, 12)
+    }
+
+    private var searchButton: some View {
+        Button {
+            showingCustomInput.toggle()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 9, weight: .bold))
+                Text("Search")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+            }
+            .frame(width: 68, height: 22)
+            .background(Color.white.opacity(0.10))
+            .foregroundColor(.white.opacity(0.85))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showingCustomInput) {
+            customSymbolInputView
+        }
+    }
+
+    private var expandedView: some View {
+        VStack(spacing: 0) {
+            expandedTopBar
+
+            // Content below notch
+            VStack(spacing: 8) {
+                // Price & 24h Change Row (grouped together on the left)
+                if let ticker = binanceService.ticker {
+                    HStack(alignment: .center, spacing: 8) {
+                        Text(ticker.formattedPrice)
+                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                            .foregroundColor(flashColor(for: ticker))
+                            .animation(.easeInOut(duration: 0.2), value: binanceService.flashDirection)
+
+                        // Change Badge (Inline with price)
+                        HStack(spacing: 3) {
+                            Image(systemName: ticker.priceChangePercent >= 0 ? "arrow.up.right" : "arrow.down.right")
+                                .font(.system(size: 9, weight: .bold))
+                            Text(ticker.formattedChangePercent)
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        }
+                        .padding(.horizontal, 7)
+                        .frame(height: 20)
+                        .background(
+                            (ticker.priceChangePercent >= 0 ? Color.green : Color.red).opacity(0.2)
+                        )
+                        .foregroundColor(ticker.priceChangePercent >= 0 ? .green : .red)
+                        .clipShape(Capsule())
+
+                        Spacer()
+                    }
+                    .frame(height: 22)
+
+                    // 2-Row Stats Grid: Key Levels & Flow/Momentum
+                    VStack(spacing: 5) {
+                        // Row 1: Key Levels & Institutional Benchmark
+                        HStack(spacing: 8) {
+                            statColumn(title: "24h High", value: ticker.formattedHigh)
+                            Divider().frame(height: 18).background(Color.white.opacity(0.12))
+                            statColumn(title: "24h Low", value: ticker.formattedLow)
+                            Divider().frame(height: 18).background(Color.white.opacity(0.12))
+                            statColumn(title: "VWAP", value: ticker.formattedVWAP)
+                        }
+
+                        Divider().background(Color.white.opacity(0.08))
+
+                        // Row 2: Real-time Flow & Taker Buy Pressure
+                        HStack(spacing: 8) {
+                            statColumn(title: "15m Vol", value: ticker.formattedQuoteVolume15m)
+                            Divider().frame(height: 18).background(Color.white.opacity(0.12))
+                            statColumn(title: "5m Vol", value: ticker.formattedQuoteVolume5m)
+                            Divider().frame(height: 18).background(Color.white.opacity(0.12))
+                            statColumn(
+                                title: "5m Buy %",
+                                value: ticker.formattedTakerBuyRatio5m,
+                                valueColor: buyRatioColor(ticker.takerBuyRatio5m)
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.white.opacity(0.08))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
+                    )
+                } else {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                        Text("Fetching Binance data...")
+                            .font(.system(size: 11))
+                            .foregroundColor(.gray)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 6)
+                }
+            }
+            .padding(.top, 4)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 14)
+        }
     }
 
     private func statColumn(title: String, value: String, valueColor: Color = .white.opacity(0.92)) -> some View {
