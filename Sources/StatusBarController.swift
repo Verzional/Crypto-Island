@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import ServiceManagement
 
 /// Manages the macOS menu bar status item companion.
 @MainActor
@@ -164,9 +165,19 @@ public final class StatusBarController: NSObject {
         stealthItem.state = settings.stealthMode ? .on : .off
         menu.addItem(stealthItem)
 
+        // 5. Launch at Login
+        let launchItem = NSMenuItem(
+            title: "Launch at Login",
+            action: #selector(toggleLaunchAtLogin),
+            keyEquivalent: ""
+        )
+        launchItem.target = self
+        launchItem.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
+        menu.addItem(launchItem)
+
         menu.addItem(NSMenuItem.separator())
 
-        // 5. Quit
+        // 6. Quit
         let quitItem = NSMenuItem(
             title: "Quit CryptoIsland",
             action: #selector(quitApp),
@@ -199,6 +210,19 @@ public final class StatusBarController: NSObject {
 
     @objc private func toggleStealth() {
         settings.stealthMode.toggle()
+        rebuildMenu()
+    }
+
+    @objc private func toggleLaunchAtLogin() {
+        do {
+            if SMAppService.mainApp.status == .enabled {
+                try SMAppService.mainApp.unregister()
+            } else {
+                try SMAppService.mainApp.register()
+            }
+        } catch {
+            print("Failed to toggle Launch at Login: \(error)")
+        }
         rebuildMenu()
     }
 
