@@ -164,13 +164,13 @@ public struct TickerData: Equatable {
 
     private func formatVolumeValue(_ value: Double) -> String {
         if value >= 1_000_000_000 {
-            return String(format: "$%.2fB", value / 1_000_000_000)
+            return String(format: "%.3fB", value / 1_000_000_000)
         } else if value >= 1_000_000 {
-            return String(format: "$%.2fM", value / 1_000_000)
+            return String(format: "%.3fM", value / 1_000_000)
         } else if value >= 1_000 {
-            return String(format: "$%.1fK", value / 1_000)
+            return String(format: "%.3fK", value / 1_000)
         } else if value > 0 {
-            return String(format: "$%.0f", value)
+            return String(format: "%.3f", value)
         } else {
             return "--"
         }
