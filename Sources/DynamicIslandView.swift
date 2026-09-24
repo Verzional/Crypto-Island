@@ -70,6 +70,26 @@ public struct NotchOutline: Shape {
     }
 }
 
+/// Subtle breathing skeleton pulse effect for loading component placeholders.
+public struct SkeletonModifier: ViewModifier {
+    @State private var isPulsing: Bool = false
+
+    public func body(content: Content) -> some View {
+        content
+            .opacity(isPulsing ? 0.30 : 0.75)
+            .animation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true), value: isPulsing)
+            .onAppear {
+                isPulsing = true
+            }
+    }
+}
+
+extension View {
+    public func skeletonPulse() -> some View {
+        modifier(SkeletonModifier())
+    }
+}
+
 /// The SwiftUI view representing the macOS Dynamic Island for crypto prices.
 public struct DynamicIslandView: View {
     @ObservedObject var binanceService: BinanceService
@@ -226,9 +246,10 @@ public struct DynamicIslandView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.70)
                 } else {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                        .frame(width: 14, height: 14)
+                    RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+                        .fill(Color.white.opacity(0.18))
+                        .frame(width: 52, height: 13)
+                        .skeletonPulse()
                 }
             }
             .frame(width: geometry.earWidth, alignment: .center)
@@ -370,8 +391,8 @@ public struct DynamicIslandView: View {
             // Content below notch
             VStack(spacing: 8) {
                 // Price & 24h Change Row (grouped together on the left)
-                if let ticker = binanceService.ticker {
-                    HStack(alignment: .center, spacing: 8) {
+                HStack(alignment: .center, spacing: 8) {
+                    if let ticker = binanceService.ticker {
                         Text(ticker.formattedPrice)
                             .font(.system(size: 18, weight: .bold, design: .monospaced))
                             .foregroundColor(flashColor(for: ticker))
@@ -391,58 +412,69 @@ public struct DynamicIslandView: View {
                         )
                         .foregroundColor(ticker.priceChangePercent >= 0 ? .green : .red)
                         .clipShape(Capsule())
+                    } else {
+                        // Price loading placeholder
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color.white.opacity(0.16))
+                            .frame(width: 88, height: 20)
+                            .skeletonPulse()
 
-                        Spacer()
+                        // Change Badge loading placeholder
+                        Capsule()
+                            .fill(Color.white.opacity(0.12))
+                            .frame(width: 54, height: 20)
+                            .skeletonPulse()
                     }
-                    .frame(height: 22)
 
-                    // 2-Row Stats Grid: Key Levels & Flow/Momentum
-                    VStack(spacing: 5) {
-                        // Row 1: Key Levels & Institutional Benchmark
-                        HStack(spacing: 8) {
-                            statColumn(title: "24h High", value: ticker.formattedHigh)
-                            Divider().frame(height: 18).background(Color.white.opacity(0.12))
-                            statColumn(title: "24h Low", value: ticker.formattedLow)
-                            Divider().frame(height: 18).background(Color.white.opacity(0.12))
-                            statColumn(title: "VWAP", value: ticker.formattedVWAP)
-                        }
-
-                        Divider().background(Color.white.opacity(0.08))
-
-                        // Row 2: Real-time Flow & Taker Buy Pressure
-                        HStack(spacing: 8) {
-                            statColumn(title: "15m Vol", value: ticker.formattedQuoteVolume15m)
-                            Divider().frame(height: 18).background(Color.white.opacity(0.12))
-                            statColumn(title: "5m Vol", value: ticker.formattedQuoteVolume5m)
-                            Divider().frame(height: 18).background(Color.white.opacity(0.12))
-                            statColumn(
-                                title: "5m Buy %",
-                                value: ticker.formattedTakerBuyRatio5m,
-                                valueColor: buyRatioColor(ticker.takerBuyRatio5m)
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.white.opacity(0.08))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
-                    )
-                } else {
-                    HStack {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                        Text("Fetching Binance data...")
-                            .font(.system(size: 11))
-                            .foregroundColor(.gray)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 6)
+                    Spacer()
                 }
+                .frame(height: 22)
+
+                // 2-Row Stats Grid: Key Levels & Flow/Momentum
+                VStack(spacing: 5) {
+                    // Row 1: Key Levels & Institutional Benchmark
+                    HStack(spacing: 8) {
+                        statColumn(title: "24h High", value: binanceService.ticker?.formattedHigh, placeholderWidth: 58)
+                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
+                        statColumn(title: "24h Low", value: binanceService.ticker?.formattedLow, placeholderWidth: 58)
+                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
+                        statColumn(title: "VWAP", value: binanceService.ticker?.formattedVWAP, placeholderWidth: 58)
+                    }
+
+                    Divider().background(Color.white.opacity(0.08))
+
+                    // Row 2: Real-time Flow & Taker Buy Pressure
+                    HStack(spacing: 8) {
+                        let vol15mLoaded = (binanceService.ticker?.quoteVolume15m ?? 0) > 0
+                        statColumn(title: "15m Vol", value: vol15mLoaded ? binanceService.ticker?.formattedQuoteVolume15m : nil, placeholderWidth: 52)
+
+                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
+
+                        let vol5mLoaded = (binanceService.ticker?.quoteVolume5m ?? 0) > 0
+                        statColumn(title: "5m Vol", value: vol5mLoaded ? binanceService.ticker?.formattedQuoteVolume5m : nil, placeholderWidth: 52)
+
+                        Divider().frame(height: 18).background(Color.white.opacity(0.12))
+
+                        let buyRatio = binanceService.ticker?.takerBuyRatio5m ?? 50.0
+                        let buyRatioStr = binanceService.ticker?.formattedTakerBuyRatio5m
+                        statColumn(
+                            title: "5m Buy %",
+                            value: vol5mLoaded ? buyRatioStr : nil,
+                            valueColor: buyRatioColor(buyRatio),
+                            placeholderWidth: 36
+                        )
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
+                )
             }
             .padding(.top, 4)
             .padding(.horizontal, 14)
@@ -450,16 +482,30 @@ public struct DynamicIslandView: View {
         }
     }
 
-    private func statColumn(title: String, value: String, valueColor: Color = .white.opacity(0.92)) -> some View {
+    private func statColumn(
+        title: String,
+        value: String?,
+        valueColor: Color = .white.opacity(0.92),
+        placeholderWidth: CGFloat = 55
+    ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 9, weight: .medium))
                 .foregroundColor(.gray)
-            Text(value)
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundColor(valueColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+
+            if let val = value, !val.isEmpty {
+                Text(val)
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundColor(valueColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            } else {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(Color.white.opacity(0.16))
+                    .frame(width: placeholderWidth, height: 12)
+                    .skeletonPulse()
+                    .padding(.vertical, 1)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
