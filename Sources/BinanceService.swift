@@ -62,24 +62,7 @@ public final class BinanceService: ObservableObject {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         isConnected = false
-        if let old = ticker {
-            ticker = TickerData(
-                symbol: currentSymbol.symbol,
-                price: old.price,
-                priceChange: old.priceChange,
-                priceChangePercent: old.priceChangePercent,
-                high24h: old.high24h,
-                low24h: old.low24h,
-                vwap: old.vwap,
-                volume: old.volume,
-                quoteVolume: old.quoteVolume,
-                volume5m: old.volume5m,
-                quoteVolume5m: old.quoteVolume5m,
-                takerBuyRatio5m: old.takerBuyRatio5m,
-                volume15m: old.volume15m,
-                quoteVolume15m: old.quoteVolume15m
-            )
-        }
+        ticker = nil
         
         fetchInitialTicker()
         connectWebSocket()
