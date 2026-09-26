@@ -100,6 +100,11 @@ public struct DynamicIslandView: View {
     @State private var isSearchHovered: Bool = false
     @State private var isBackHovered: Bool = false
     @State private var hoveredPillSymbol: String? = nil
+    @State private var isFavoritesFullAlertShowing: Bool = false
+    @State private var starShake: CGFloat = 0
+    @State private var starScale: CGFloat = 1.0
+    @State private var isStarHovered: Bool = false
+    @State private var dismissToastTask: Task<Void, Never>? = nil
     @FocusState private var isSearchFocused: Bool
 
     private var geometry: NotchGeometry {
@@ -297,17 +302,75 @@ public struct DynamicIslandView: View {
     private var favoriteStarButton: some View {
         let isFav = settings.isFavorite(binanceService.currentSymbol.symbol)
         return Button {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                settings.toggleFavorite(binanceService.currentSymbol.symbol)
+            if isFav {
+                _ = withAnimation(.spring(response: 0.25, dampingFraction: 0.72)) {
+                    settings.toggleFavorite(binanceService.currentSymbol.symbol)
+                }
+                // Native Apple unfavorite settle
+                withAnimation(.spring(response: 0.16, dampingFraction: 0.70)) {
+                    starScale = 0.90
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.75)) {
+                        starScale = 1.0
+                    }
+                }
+            } else {
+                let success = settings.toggleFavorite(binanceService.currentSymbol.symbol)
+                if success {
+                    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+                    // Native Apple favorite pulse (1.16x axial bounce, zero rotation)
+                    withAnimation(.spring(response: 0.18, dampingFraction: 0.65)) {
+                        starScale = 1.16
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+                        withAnimation(.spring(response: 0.26, dampingFraction: 0.72)) {
+                            starScale = 1.0
+                        }
+                    }
+                } else {
+                    triggerFavoritesFullFeedback()
+                }
             }
         } label: {
             Image(systemName: isFav ? "star.fill" : "star")
                 .font(.system(size: 10.5, weight: .semibold))
-                .foregroundColor(isFav ? .yellow : .white.opacity(0.35))
+                .foregroundColor(isFav ? .white : (isStarHovered ? .white.opacity(0.70) : .white.opacity(0.35)))
+                .scaleEffect(starScale)
+                .offset(x: starShake)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isStarHovered = hovering
+            }
+        }
         .help(isFav ? "Remove from Favorites" : "Add to Favorites (Max 9)")
+    }
+
+    private func triggerFavoritesFullFeedback() {
+        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
+
+        // Apple-native subtle reject shake (2.5pt, 3 cycles, 140ms total)
+        withAnimation(.easeInOut(duration: 0.045).repeatCount(3, autoreverses: true)) {
+            starShake = 2.5
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+            starShake = 0
+        }
+
+        dismissToastTask?.cancel()
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            isFavoritesFullAlertShowing = true
+        }
+        dismissToastTask = Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.22)) {
+                isFavoritesFullAlertShowing = false
+            }
+        }
     }
 
     private var searchButton: some View {
@@ -461,9 +524,44 @@ public struct DynamicIslandView: View {
             .padding(.top, 4)
             .padding(.horizontal, 14)
             .padding(.bottom, 14)
+            }
+        }
+        .overlay(alignment: .top) {
+            if isFavoritesFullAlertShowing {
+                favoritesFullToast
+                    .padding(.top, geometry.collapsedHeight + 5)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .scale(scale: 0.94).combined(with: .opacity)
+                    ))
+            }
         }
     }
-}
+
+    private var favoritesFullToast: some View {
+        Text("Favorites Full (9/9)")
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .foregroundColor(.white)
+            .tracking(0.3)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Color(white: 0.12).opacity(0.96))
+                    .shadow(color: .black.opacity(0.60), radius: 10, y: 4)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.32), Color.white.opacity(0.12)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.8
+                    )
+            )
+    }
 
     private var invalidSymbolErrorView: some View {
         VStack(spacing: 16) {
@@ -695,11 +793,11 @@ public struct DynamicIslandView: View {
                     VStack(spacing: 8) {
                         ZStack {
                             Circle()
-                                .fill(Color.yellow.opacity(0.12))
+                                .fill(Color.white.opacity(0.08))
                                 .frame(width: 28, height: 28)
                             Image(systemName: "star.fill")
                                 .font(.system(size: 13))
-                                .foregroundColor(Color.yellow.opacity(0.85))
+                                .foregroundColor(Color.white.opacity(0.75))
                         }
 
                         VStack(spacing: 3) {
