@@ -222,6 +222,9 @@ public final class DynamicIslandController: NSObject, ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var collapseWorkItem: DispatchWorkItem?
 
+    public static let expandAnimation = Animation.spring(response: 0.30, dampingFraction: 0.72)
+    public static let collapseAnimation = Animation.spring(response: 0.20, dampingFraction: 0.88)
+
     public init(binanceService: BinanceService, settings: SettingsModel) {
         self.binanceService = binanceService
         self.settings = settings
@@ -249,11 +252,11 @@ public final class DynamicIslandController: NSObject, ObservableObject {
             .sink { [weak self] pinned in
                 guard let self = self else { return }
                 if pinned && !self.isExpanded {
-                    withAnimation(.spring(response: 0.22, dampingFraction: 0.78)) {
+                    withAnimation(Self.expandAnimation) {
                         self.isExpanded = true
                     }
                 } else if !pinned && !self.isHovered && !self.isCustomInputShowing && self.isExpanded {
-                    withAnimation(.spring(response: 0.20, dampingFraction: 0.84)) {
+                    withAnimation(Self.collapseAnimation) {
                         self.isExpanded = false
                     }
                 }
@@ -294,7 +297,7 @@ public final class DynamicIslandController: NSObject, ObservableObject {
             isCollapsing = false
 
             if !isExpanded {
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.78)) {
+                withAnimation(Self.expandAnimation) {
                     isExpanded = true
                 }
             }
@@ -306,7 +309,7 @@ public final class DynamicIslandController: NSObject, ObservableObject {
                 guard let self = self else { return }
                 guard !self.isHovered, !self.settings.isPinned, !self.isCustomInputShowing, self.isExpanded else { return }
                 self.isCollapsing = true
-                withAnimation(.spring(response: 0.20, dampingFraction: 0.84)) {
+                withAnimation(Self.collapseAnimation) {
                     self.isExpanded = false
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak self] in
@@ -322,7 +325,8 @@ public final class DynamicIslandController: NSObject, ObservableObject {
     }
 
     public func toggleExpansion() {
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.78)) {
+        let anim = !isExpanded ? Self.expandAnimation : Self.collapseAnimation
+        withAnimation(anim) {
             isExpanded.toggle()
         }
     }
