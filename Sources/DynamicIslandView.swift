@@ -92,37 +92,32 @@ extension View {
 
 /// The SwiftUI view representing the macOS Dynamic Island for crypto prices.
 public struct DynamicIslandView: View {
+    @ObservedObject var controller: DynamicIslandController
     @ObservedObject var binanceService: BinanceService
     @ObservedObject var settings: SettingsModel
-    @Binding var isExpanded: Bool
 
-    @State private var showingCustomInput: Bool = false
     @State private var customSymbolText: String = ""
-    @State private var isHovered: Bool = false
     @State private var isSearchHovered: Bool = false
     @FocusState private var isSearchFocused: Bool
-    @State private var isCollapsing: Bool = false
-    @State private var expandWorkItem: DispatchWorkItem?
-    @State private var collapseWorkItem: DispatchWorkItem?
 
     private var geometry: NotchGeometry {
         NotchGeometry.current()
     }
 
     public init(
+        controller: DynamicIslandController,
         binanceService: BinanceService,
-        settings: SettingsModel,
-        isExpanded: Binding<Bool>
+        settings: SettingsModel
     ) {
+        self.controller = controller
         self.binanceService = binanceService
         self.settings = settings
-        self._isExpanded = isExpanded
     }
 
     public var body: some View {
         ZStack(alignment: .top) {
             ZStack(alignment: .top) {
-                if isExpanded {
+                if controller.isExpanded {
                     expandedView
                         .transition(.opacity)
                 } else {
@@ -131,17 +126,17 @@ public struct DynamicIslandView: View {
                 }
             }
             .frame(
-                width: isExpanded ? geometry.expandedWidth : geometry.collapsedWidth,
-                height: isExpanded ? geometry.expandedHeight : geometry.collapsedHeight,
+                width: controller.isExpanded ? geometry.expandedWidth : geometry.collapsedWidth,
+                height: controller.isExpanded ? geometry.expandedHeight : geometry.collapsedHeight,
                 alignment: .top
             )
             .background(
                 ZStack {
                     if geometry.hasNotch {
-                        NotchShape(bottomRadius: isExpanded ? 20 : 10)
+                        NotchShape(bottomRadius: controller.isExpanded ? 20 : 10)
                             .fill(Color.black)
                     } else {
-                        RoundedRectangle(cornerRadius: isExpanded ? 20 : 17, style: .continuous)
+                        RoundedRectangle(cornerRadius: controller.isExpanded ? 20 : 17, style: .continuous)
                             .fill(Color.black)
                     }
                 }
@@ -149,74 +144,27 @@ public struct DynamicIslandView: View {
             .overlay(
                 ZStack {
                     if geometry.hasNotch {
-                        NotchOutline(bottomRadius: isExpanded ? 20 : 10)
+                        NotchOutline(bottomRadius: controller.isExpanded ? 20 : 10)
                             .stroke(Color.white.opacity(0.12), lineWidth: 1)
                     } else {
-                        RoundedRectangle(cornerRadius: isExpanded ? 20 : 17, style: .continuous)
+                        RoundedRectangle(cornerRadius: controller.isExpanded ? 20 : 17, style: .continuous)
                             .stroke(Color.white.opacity(0.12), lineWidth: 1)
                     }
                 }
             )
             .clipShape(
                 geometry.hasNotch
-                    ? AnyShape(NotchShape(bottomRadius: isExpanded ? 20 : 10))
-                    : AnyShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 17, style: .continuous))
+                    ? AnyShape(NotchShape(bottomRadius: controller.isExpanded ? 20 : 10))
+                    : AnyShape(RoundedRectangle(cornerRadius: controller.isExpanded ? 20 : 17, style: .continuous))
             )
-            .shadow(color: Color.black.opacity(isExpanded ? 0.35 : 0.0), radius: isExpanded ? 12 : 0, x: 0, y: isExpanded ? 6 : 0)
+            .shadow(color: Color.black.opacity(controller.isExpanded ? 0.35 : 0.0), radius: controller.isExpanded ? 12 : 0, x: 0, y: controller.isExpanded ? 6 : 0)
             .contentShape(Rectangle())
-            .onHover { hovering in
-                isHovered = hovering
-                if hovering {
-                    collapseWorkItem?.cancel()
-                    collapseWorkItem = nil
-
-                    if !isExpanded {
-                        expandWorkItem?.cancel()
-                        let work = DispatchWorkItem {
-                            guard isHovered && !isExpanded else { return }
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                                isExpanded = true
-                            }
-                        }
-                        expandWorkItem = work
-                        let delay: Double = isCollapsing ? 0.35 : 0.08
-                        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
-                    }
-                } else {
-                    expandWorkItem?.cancel()
-                    expandWorkItem = nil
-
-                    guard isExpanded else { return }
-
-                    collapseWorkItem?.cancel()
-                    let work = DispatchWorkItem {
-                        guard !isHovered && !showingCustomInput && !settings.isPinned && isExpanded else { return }
-                        isCollapsing = true
-                        withAnimation(.spring(response: 0.30, dampingFraction: 0.86)) {
-                            isExpanded = false
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            isCollapsing = false
-                        }
-                    }
-                    collapseWorkItem = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
-                }
-            }
         }
-        .opacity((settings.stealthMode && !isExpanded && !isHovered) ? 0.0 : 1.0)
+        .opacity((settings.stealthMode && !controller.isExpanded && !controller.isHovered) ? 0.0 : 1.0)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
         .animation(.easeInOut(duration: 0.2), value: binanceService.flashDirection)
         .animation(.easeInOut(duration: 0.25), value: settings.stealthMode)
-        .animation(.easeInOut(duration: 0.25), value: isHovered)
-        .onChange(of: settings.isPinned) { pinned in
-            if pinned && !isExpanded {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                    isExpanded = true
-                }
-            }
-        }
+        .animation(.easeInOut(duration: 0.25), value: controller.isHovered)
     }
 
     // MARK: - Collapsed View
@@ -257,9 +205,7 @@ public struct DynamicIslandView: View {
         .frame(height: geometry.collapsedHeight)
         .contentShape(Rectangle())
         .onTapGesture {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                isExpanded.toggle()
-            }
+            controller.toggleExpansion()
         }
     }
 
@@ -340,20 +286,20 @@ public struct DynamicIslandView: View {
 
     private var searchButton: some View {
         Button {
-            showingCustomInput.toggle()
+            controller.isCustomInputShowing.toggle()
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 9.5, weight: .bold))
-                    .foregroundColor(.white.opacity(isSearchHovered || showingCustomInput ? 1.0 : 0.8))
+                    .foregroundColor(.white.opacity(isSearchHovered || controller.isCustomInputShowing ? 1.0 : 0.8))
                 Text("Search")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(isSearchHovered || showingCustomInput ? 1.0 : 0.85))
+                    .foregroundColor(.white.opacity(isSearchHovered || controller.isCustomInputShowing ? 1.0 : 0.85))
             }
             .frame(width: 68, height: 22)
             .background(
                 LinearGradient(
-                    colors: showingCustomInput
+                    colors: controller.isCustomInputShowing
                         ? [Color.white.opacity(0.24), Color.white.opacity(0.15)]
                         : isSearchHovered
                             ? [Color.white.opacity(0.18), Color.white.opacity(0.10)]
@@ -366,7 +312,7 @@ public struct DynamicIslandView: View {
             .overlay(
                 Capsule()
                     .stroke(
-                        showingCustomInput
+                        controller.isCustomInputShowing
                             ? Color.white.opacity(0.35)
                             : isSearchHovered
                                 ? Color.white.opacity(0.25)
@@ -379,7 +325,7 @@ public struct DynamicIslandView: View {
         .onHover { hovering in
             isSearchHovered = hovering
         }
-        .popover(isPresented: $showingCustomInput, arrowEdge: .bottom) {
+        .popover(isPresented: $controller.isCustomInputShowing, arrowEdge: .bottom) {
             customSymbolInputView
         }
     }
@@ -620,7 +566,7 @@ public struct DynamicIslandView: View {
                             Button {
                                 binanceService.selectSymbol(preset)
                                 customSymbolText = ""
-                                showingCustomInput = false
+                                controller.isCustomInputShowing = false
                             } label: {
                                 Text(preset.baseAsset)
                                     .font(.system(size: 11, weight: isCurrent ? .bold : .medium, design: .rounded))
@@ -661,7 +607,7 @@ public struct DynamicIslandView: View {
         let sym = CryptoSymbol.from(rawInput: customSymbolText)
         binanceService.selectSymbol(sym)
         customSymbolText = ""
-        showingCustomInput = false
+        controller.isCustomInputShowing = false
     }
 
     // MARK: - Colors

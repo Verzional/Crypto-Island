@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 
 /// Custom NSPanel configured to float above full-screen windows (e.g. YouTube in full-screen)
 /// and anchor to the macOS camera notch or top bezel.
@@ -28,6 +29,7 @@ public final class DynamicIslandPanel: NSPanel {
         self.hidesOnDeactivate = false
         self.titleVisibility = .hidden
         self.titlebarAppearsTransparent = true
+        self.acceptsMouseMovedEvents = true
     }
 
     override public var canBecomeKey: Bool {
@@ -124,21 +126,81 @@ public struct NotchGeometry: Equatable {
 /// Hosting view that allows mouse events outside the active Dynamic Island area to pass through to underlying windows.
 final class DynamicIslandHostingView<Content: View>: NSHostingView<Content> {
     var isExpandedProvider: () -> Bool = { false }
+    var isCollapsingProvider: () -> Bool = { false }
+    var isHoveredProvider: () -> Bool = { false }
+    var onHoverChanged: ((Bool) -> Void)?
+    private var trackingAreaRef: NSTrackingArea?
 
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        let localPoint = convert(point, from: superview)
-        let geometry = NotchGeometry.current()
-        let isExpanded = isExpandedProvider()
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingAreaRef {
+            removeTrackingArea(existing)
+        }
+        let options: NSTrackingArea.Options = [
+            .mouseEnteredAndExited,
+            .mouseMoved,
+            .activeAlways,
+            .inVisibleRect
+        ]
+        let area = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+        addTrackingArea(area)
+        self.trackingAreaRef = area
+    }
 
+    func activeRect() -> NSRect {
+        guard let window = self.window, let screen = window.screen else {
+            let geometry = NotchGeometry.current()
+            let isExpanded = isExpandedProvider() || isCollapsingProvider()
+            let width = isExpanded ? geometry.expandedWidth : geometry.collapsedWidth
+            let height = isExpanded ? geometry.expandedHeight : geometry.collapsedHeight
+            let minX = (bounds.width - width) / 2
+            let slopX: CGFloat = isExpanded ? 0 : 8
+            let slopY: CGFloat = isExpanded ? 0 : 10
+            return NSRect(x: minX - slopX, y: 0, width: width + (slopX * 2), height: height + slopY)
+        }
+        let geometry = NotchGeometry.current(for: screen)
+        let isExpanded = isExpandedProvider() || isCollapsingProvider()
         let width = isExpanded ? geometry.expandedWidth : geometry.collapsedWidth
         let height = isExpanded ? geometry.expandedHeight : geometry.collapsedHeight
         let minX = (bounds.width - width) / 2
-        let activeRect = NSRect(x: minX, y: 0, width: width, height: height)
+        let slopX: CGFloat = isExpanded ? 0 : 8
+        let slopY: CGFloat = isExpanded ? 0 : 10
+        return NSRect(x: minX - slopX, y: 0, width: width + (slopX * 2), height: height + slopY)
+    }
 
-        if !activeRect.contains(localPoint) {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let localPoint = convert(point, from: superview)
+        if !activeRect().contains(localPoint) {
             return nil
         }
-        return super.hitTest(point)
+        return super.hitTest(point) ?? self
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        checkHover(with: event)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        checkHover(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        setHovered(false)
+    }
+
+    private func checkHover(with event: NSEvent) {
+        let localPoint = convert(event.locationInWindow, from: nil)
+        let inside = activeRect().contains(localPoint)
+        setHovered(inside)
+    }
+
+    private func setHovered(_ hovered: Bool) {
+        let current = isHoveredProvider()
+        guard hovered != current else { return }
+        onHoverChanged?(hovered)
     }
 }
 
@@ -151,9 +213,14 @@ public final class DynamicIslandController: NSObject, ObservableObject {
     public let settings: SettingsModel
 
     @Published public var isExpanded: Bool = false
+    @Published public var isHovered: Bool = false
+    @Published public var isCustomInputShowing: Bool = false
+    public var isCollapsing: Bool = false
 
     private var hostingView: DynamicIslandHostingView<AnyView>?
     private var screenChangeObserver: Any?
+    private var cancellables = Set<AnyCancellable>()
+    private var collapseWorkItem: DispatchWorkItem?
 
     public init(binanceService: BinanceService, settings: SettingsModel) {
         self.binanceService = binanceService
@@ -175,6 +242,23 @@ public final class DynamicIslandController: NSObject, ObservableObject {
                 self?.updatePanelFrame()
             }
         }
+
+        settings.$isPinned
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] pinned in
+                guard let self = self else { return }
+                if pinned && !self.isExpanded {
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.78)) {
+                        self.isExpanded = true
+                    }
+                } else if !pinned && !self.isHovered && !self.isCustomInputShowing && self.isExpanded {
+                    withAnimation(.spring(response: 0.20, dampingFraction: 0.84)) {
+                        self.isExpanded = false
+                    }
+                }
+            }
+            .store(in: &cancellables)
     }
 
     deinit {
@@ -184,26 +268,61 @@ public final class DynamicIslandController: NSObject, ObservableObject {
     }
 
     private func setupHostingView() {
-        let binding = Binding<Bool>(
-            get: { [weak self] in self?.isExpanded ?? false },
-            set: { [weak self] in self?.isExpanded = $0 }
-        )
-
         let rootView = DynamicIslandView(
+            controller: self,
             binanceService: binanceService,
-            settings: settings,
-            isExpanded: binding
+            settings: settings
         )
 
         let host = DynamicIslandHostingView(rootView: AnyView(rootView))
         host.isExpandedProvider = { [weak self] in self?.isExpanded ?? false }
+        host.isCollapsingProvider = { [weak self] in self?.isCollapsing ?? false }
+        host.isHoveredProvider = { [weak self] in self?.isHovered ?? false }
+        host.onHoverChanged = { [weak self] hovered in
+            self?.handleHover(hovered)
+        }
         host.autoresizingMask = [.width, .height]
         panel.contentView = host
         self.hostingView = host
     }
 
+    public func handleHover(_ hovering: Bool) {
+        isHovered = hovering
+        if hovering {
+            collapseWorkItem?.cancel()
+            collapseWorkItem = nil
+            isCollapsing = false
+
+            if !isExpanded {
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.78)) {
+                    isExpanded = true
+                }
+            }
+        } else {
+            guard isExpanded, !settings.isPinned, !isCustomInputShowing else { return }
+
+            collapseWorkItem?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                guard let self = self else { return }
+                guard !self.isHovered, !self.settings.isPinned, !self.isCustomInputShowing, self.isExpanded else { return }
+                self.isCollapsing = true
+                withAnimation(.spring(response: 0.20, dampingFraction: 0.84)) {
+                    self.isExpanded = false
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak self] in
+                    guard let self = self else { return }
+                    if !self.isExpanded {
+                        self.isCollapsing = false
+                    }
+                }
+            }
+            collapseWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10, execute: work)
+        }
+    }
+
     public func toggleExpansion() {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.78)) {
             isExpanded.toggle()
         }
     }
