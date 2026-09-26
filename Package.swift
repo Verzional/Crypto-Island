@@ -17,7 +17,13 @@ let package = Package(
         .executableTarget(
             name: "CryptoIsland",
             dependencies: [],
-            path: "Sources"
+            path: "Sources",
+            exclude: ["AppIcon.icns"]
+        ),
+        .testTarget(
+            name: "CryptoIslandTests",
+            dependencies: ["CryptoIsland"],
+            path: "Tests"
         )
     ]
 )
