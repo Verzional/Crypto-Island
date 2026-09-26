@@ -105,6 +105,9 @@ public struct DynamicIslandView: View {
     @State private var starScale: CGFloat = 1.0
     @State private var isStarHovered: Bool = false
     @State private var dismissToastTask: Task<Void, Never>? = nil
+    @State private var isPencilHovered: Bool = false
+    @State private var selectedSlotToCustomize: Int = 0
+    @State private var selectedMetricCategory: MetricCategory = .all
     @FocusState private var isSearchFocused: Bool
 
     private var geometry: NotchGeometry {
@@ -263,8 +266,9 @@ public struct DynamicIslandView: View {
                     Color.clear
                         .frame(width: geometry.notchWidth, height: geometry.collapsedHeight)
 
-                    // Right Ear: Search Button (aligned with 14pt right margin)
-                    HStack {
+                    // Right Ear: Action Tools (aligned with 14pt right margin)
+                    HStack(spacing: 6) {
+                        customizeGridButton
                         searchButton
                     }
                     .padding(.trailing, 14)
@@ -291,8 +295,11 @@ public struct DynamicIslandView: View {
 
                     Spacer()
 
-                    searchButton
-                        .padding(.trailing, 14)
+                    HStack(spacing: 6) {
+                        customizeGridButton
+                        searchButton
+                    }
+                    .padding(.trailing, 14)
                 }
                 .frame(height: geometry.collapsedHeight)
             }
@@ -373,42 +380,89 @@ public struct DynamicIslandView: View {
         }
     }
 
+    private var customizeGridButton: some View {
+        Button {
+            if !controller.isCustomizingGrid {
+                controller.isCustomInputShowing = false
+            }
+            controller.isCustomizingGrid.toggle()
+        } label: {
+            Image(systemName: "pencil")
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundColor(.white.opacity(isPencilHovered || controller.isCustomizingGrid ? 1.0 : 0.8))
+                .frame(width: 22, height: 22)
+                .background(
+                    LinearGradient(
+                        colors: controller.isCustomizingGrid
+                            ? [Color.white.opacity(0.24), Color.white.opacity(0.15)]
+                            : isPencilHovered
+                                ? [Color.white.opacity(0.18), Color.white.opacity(0.10)]
+                                : [Color.white.opacity(0.12), Color.white.opacity(0.06)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(
+                            controller.isCustomizingGrid
+                                ? Color.white.opacity(0.35)
+                                : isPencilHovered
+                                    ? Color.white.opacity(0.25)
+                                    : Color.white.opacity(0.15),
+                            lineWidth: 0.8
+                        )
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isPencilHovered = hovering
+            }
+        }
+        .help("Customize Stats Grid")
+        .popover(isPresented: $controller.isCustomizingGrid, arrowEdge: .bottom) {
+            gridCustomizationPopoverView
+        }
+    }
+
     private var searchButton: some View {
         Button {
+            if !controller.isCustomInputShowing {
+                controller.isCustomizingGrid = false
+            }
             controller.isCustomInputShowing.toggle()
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 9.5, weight: .bold))
-                    .foregroundColor(.white.opacity(isSearchHovered || controller.isCustomInputShowing ? 1.0 : 0.8))
-                Text("Search")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(isSearchHovered || controller.isCustomInputShowing ? 1.0 : 0.85))
-            }
-            .frame(width: 68, height: 22)
-            .background(
-                LinearGradient(
-                    colors: controller.isCustomInputShowing
-                        ? [Color.white.opacity(0.24), Color.white.opacity(0.15)]
-                        : isSearchHovered
-                            ? [Color.white.opacity(0.18), Color.white.opacity(0.10)]
-                            : [Color.white.opacity(0.12), Color.white.opacity(0.06)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(
-                        controller.isCustomInputShowing
-                            ? Color.white.opacity(0.35)
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundColor(.white.opacity(isSearchHovered || controller.isCustomInputShowing ? 1.0 : 0.8))
+                .frame(width: 22, height: 22)
+                .background(
+                    LinearGradient(
+                        colors: controller.isCustomInputShowing
+                            ? [Color.white.opacity(0.24), Color.white.opacity(0.15)]
                             : isSearchHovered
-                                ? Color.white.opacity(0.25)
-                                : Color.white.opacity(0.15),
-                        lineWidth: 0.8
+                                ? [Color.white.opacity(0.18), Color.white.opacity(0.10)]
+                                : [Color.white.opacity(0.12), Color.white.opacity(0.06)],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
-            )
+                )
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(
+                            controller.isCustomInputShowing
+                                ? Color.white.opacity(0.35)
+                                : isSearchHovered
+                                    ? Color.white.opacity(0.25)
+                                    : Color.white.opacity(0.15),
+                            lineWidth: 0.8
+                        )
+                )
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -416,6 +470,7 @@ public struct DynamicIslandView: View {
                 isSearchHovered = hovering
             }
         }
+        .help("Search & Switch Pair")
         .popover(isPresented: $controller.isCustomInputShowing, arrowEdge: .bottom) {
             customSymbolInputView
         }
@@ -475,39 +530,27 @@ public struct DynamicIslandView: View {
                 }
                 .frame(height: 22)
 
-                // 2-Row Stats Grid: Key Levels & Flow/Momentum
+                // 2-Row Stats Grid: Configurable 6-Slot Grid
                 VStack(spacing: 5) {
-                    // Row 1: Key Levels & Institutional Benchmark
+                    let slots = settings.gridSlots.count == 6 ? settings.gridSlots : StatMetric.defaultSlots
+                    // Row 1
                     HStack(spacing: 8) {
-                        statColumn(title: "24h High", value: binanceService.ticker?.formattedHigh, placeholderWidth: 58)
+                        statCell(slotIndex: 0, metric: slots[0])
                         Divider().frame(height: 18).background(Color.white.opacity(0.12))
-                        statColumn(title: "24h Low", value: binanceService.ticker?.formattedLow, placeholderWidth: 58)
+                        statCell(slotIndex: 1, metric: slots[1])
                         Divider().frame(height: 18).background(Color.white.opacity(0.12))
-                        statColumn(title: "VWAP", value: binanceService.ticker?.formattedVWAP, placeholderWidth: 58)
+                        statCell(slotIndex: 2, metric: slots[2])
                     }
 
                     Divider().background(Color.white.opacity(0.08))
 
-                    // Row 2: Real-time Flow & Taker Buy Pressure
+                    // Row 2
                     HStack(spacing: 8) {
-                        let vol15mLoaded = (binanceService.ticker?.quoteVolume15m ?? 0) > 0
-                        statColumn(title: "15m Vol", value: vol15mLoaded ? binanceService.ticker?.formattedQuoteVolume15m : nil, placeholderWidth: 52)
-
+                        statCell(slotIndex: 3, metric: slots[3])
                         Divider().frame(height: 18).background(Color.white.opacity(0.12))
-
-                        let vol5mLoaded = (binanceService.ticker?.quoteVolume5m ?? 0) > 0
-                        statColumn(title: "5m Vol", value: vol5mLoaded ? binanceService.ticker?.formattedQuoteVolume5m : nil, placeholderWidth: 52)
-
+                        statCell(slotIndex: 4, metric: slots[4])
                         Divider().frame(height: 18).background(Color.white.opacity(0.12))
-
-                        let buyRatio = binanceService.ticker?.takerBuyRatio5m ?? 50.0
-                        let buyRatioStr = binanceService.ticker?.formattedTakerBuyRatio5m
-                        statColumn(
-                            title: "5m Buy %",
-                            value: vol5mLoaded ? buyRatioStr : nil,
-                            valueColor: buyRatioColor(buyRatio),
-                            placeholderWidth: 36
-                        )
+                        statCell(slotIndex: 5, metric: slots[5])
                     }
                 }
                 .padding(.horizontal, 10)
@@ -721,6 +764,278 @@ public struct DynamicIslandView: View {
         } else {
             return .white.opacity(0.92)
         }
+    }
+
+    private func statCell(slotIndex: Int, metric: StatMetric) -> some View {
+        let info = displayValue(for: metric)
+        return statColumn(
+            title: metric.title,
+            value: info.value,
+            valueColor: info.color,
+            placeholderWidth: info.placeholderWidth
+        )
+    }
+
+    private func displayValue(for metric: StatMetric) -> (value: String?, color: Color, placeholderWidth: CGFloat) {
+        guard let ticker = binanceService.ticker else {
+            return (nil, .white.opacity(0.92), 52)
+        }
+        switch metric {
+        case .high24h:
+            return (ticker.formattedHigh, .white.opacity(0.92), 58)
+        case .low24h:
+            return (ticker.formattedLow, .white.opacity(0.92), 58)
+        case .vwap:
+            return (ticker.formattedVWAP, .white.opacity(0.92), 58)
+        case .quoteVolume24h:
+            return (ticker.formattedQuoteVolume, .white.opacity(0.92), 52)
+        case .baseVolume24h:
+            return (ticker.formattedBaseVolume, .white.opacity(0.92), 52)
+        case .priceChange:
+            let color: Color = ticker.priceChange >= 0 ? .green : .red
+            return (ticker.formattedPriceChange, color, 52)
+        case .openPrice:
+            return (ticker.formattedOpenPrice, .white.opacity(0.92), 58)
+        case .quoteVolume15m:
+            let volLoaded = ticker.quoteVolume15m > 0
+            return (volLoaded ? ticker.formattedQuoteVolume15m : nil, .white.opacity(0.92), 52)
+        case .quoteVolume5m:
+            let volLoaded = ticker.quoteVolume5m > 0
+            return (volLoaded ? ticker.formattedQuoteVolume5m : nil, .white.opacity(0.92), 52)
+        case .takerBuyRatio5m:
+            let volLoaded = ticker.quoteVolume5m > 0
+            let ratio = ticker.takerBuyRatio5m
+            return (volLoaded ? ticker.formattedTakerBuyRatio5m : nil, buyRatioColor(ratio), 36)
+        case .takerBuyRatio15m:
+            let volLoaded = ticker.quoteVolume15m > 0
+            let ratio = ticker.takerBuyRatio15m
+            return (volLoaded ? ticker.formattedTakerBuyRatio15m : nil, buyRatioColor(ratio), 36)
+        case .trades24h:
+            let loaded = ticker.trades24h > 0
+            return (loaded ? ticker.formattedTrades24h : nil, .white.opacity(0.92), 48)
+        case .trades5m:
+            let loaded = ticker.trades5m > 0
+            return (loaded ? ticker.formattedTrades5m : nil, .white.opacity(0.92), 42)
+        case .spread:
+            let loaded = ticker.spread > 0
+            return (loaded ? ticker.formattedSpread : nil, .white.opacity(0.92), 48)
+        case .bestBid:
+            let loaded = ticker.bidPrice > 0
+            return (loaded ? ticker.formattedBid : nil, .green.opacity(0.92), 54)
+        case .bestAsk:
+            let loaded = ticker.askPrice > 0
+            return (loaded ? ticker.formattedAsk : nil, .red.opacity(0.92), 54)
+        case .avgTradeSize:
+            let loaded = ticker.trades24h > 0 && ticker.quoteVolume > 0
+            return (loaded ? ticker.formattedAvgTradeSize : nil, .white.opacity(0.92), 52)
+        case .change1h:
+            let color: Color = ticker.change1h >= 0 ? .green : .red
+            return (ticker.formattedChange1h, color, 48)
+        case .change4h:
+            let color: Color = ticker.change4h >= 0 ? .green : .red
+            return (ticker.formattedChange4h, color, 48)
+        case .bookImbalance:
+            let loaded = ticker.bidDepth20 > 0 || ticker.askDepth20 > 0
+            let color: Color = ticker.bookImbalance >= 52.0 ? .green : (ticker.bookImbalance <= 48.0 ? .red : .white.opacity(0.92))
+            return (loaded ? ticker.formattedBookImbalance : nil, color, 52)
+        case .bidDepth20:
+            let loaded = ticker.bidDepth20 > 0
+            return (loaded ? ticker.formattedBidDepth20 : nil, .green.opacity(0.92), 52)
+        case .askDepth20:
+            let loaded = ticker.askDepth20 > 0
+            return (loaded ? ticker.formattedAskDepth20 : nil, .red.opacity(0.92), 52)
+        }
+    }
+
+    // MARK: - Grid Customization View
+    private var gridCustomizationPopoverView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header: Title + Reset Button
+            HStack(alignment: .center) {
+                Text("Customize Stats")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                Button {
+                    settings.resetGridSlots()
+                } label: {
+                    Text("Reset")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2.5)
+                        .background(Color.white.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Interactive 6-slot preview layout
+            VStack(alignment: .leading, spacing: 4) {
+                Text("TAP A SLOT TO EDIT")
+                    .font(.system(size: 8.5, weight: .bold, design: .rounded))
+                    .foregroundColor(.gray)
+                    .tracking(0.5)
+
+                let slots = settings.gridSlots.count == 6 ? settings.gridSlots : StatMetric.defaultSlots
+                VStack(spacing: 4) {
+                    HStack(spacing: 4) {
+                        ForEach(0..<3, id: \.self) { idx in
+                            slotPreviewButton(index: idx, metric: slots[idx])
+                        }
+                    }
+                    HStack(spacing: 4) {
+                        ForEach(3..<6, id: \.self) { idx in
+                            slotPreviewButton(index: idx, metric: slots[idx])
+                        }
+                    }
+                }
+            }
+
+            Divider().background(Color.white.opacity(0.12))
+
+            // Metrics picker list filtered by category (trimmed to unused metrics only)
+            VStack(alignment: .leading, spacing: 6) {
+                let alreadySelected = Set(settings.gridSlots)
+                let availableMetrics = StatMetric.allCases.filter { metric in
+                    !alreadySelected.contains(metric) && (selectedMetricCategory == .all || metric.category == selectedMetricCategory)
+                }
+
+                // Category capsules (replacing the redundant "-> Slot X" label)
+                HStack(spacing: 4) {
+                    ForEach(MetricCategory.allCases) { cat in
+                        categoryFilterCapsule(cat)
+                    }
+                }
+
+                if availableMetrics.isEmpty {
+                    Text(selectedMetricCategory == .all ? "All metrics are currently assigned" : "All \(selectedMetricCategory.title) metrics are assigned")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(.gray)
+                        .padding(.vertical, 16)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: 4) {
+                            ForEach(availableMetrics) { metric in
+                                Button {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                        settings.updateGridSlot(at: selectedSlotToCustomize, to: metric)
+                                    }
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            HStack(spacing: 5) {
+                                                Text(metric.title)
+                                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                                    .foregroundColor(.white.opacity(0.90))
+
+                                                if selectedMetricCategory == .all {
+                                                    Text(metric.category.title)
+                                                        .font(.system(size: 8, weight: .medium, design: .rounded))
+                                                        .foregroundColor(.white.opacity(0.40))
+                                                        .padding(.horizontal, 4)
+                                                        .padding(.vertical, 1)
+                                                        .background(Color.white.opacity(0.06))
+                                                        .clipShape(Capsule())
+                                                }
+                                            }
+
+                                            Text(metric.shortDescription)
+                                                .font(.system(size: 9, weight: .regular))
+                                                .foregroundColor(.white.opacity(0.5))
+                                                .lineLimit(1)
+                                        }
+
+                                        Spacer()
+
+                                        Image(systemName: "plus.circle")
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundColor(.white.opacity(0.40))
+                                    }
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 5.5)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .fill(Color.white.opacity(0.06))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 220)
+                }
+            }
+        }
+        .padding(12)
+        .frame(width: 256)
+    }
+
+    private func categoryFilterCapsule(_ cat: MetricCategory) -> some View {
+        let isSelected = selectedMetricCategory == cat
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                selectedMetricCategory = cat
+            }
+        } label: {
+            Text(cat.title)
+                .font(.system(size: 9.5, weight: isSelected ? .bold : .medium, design: .rounded))
+                .foregroundColor(isSelected ? .white : .white.opacity(0.60))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+                .background(
+                    isSelected
+                        ? Color.white.opacity(0.20)
+                        : Color.white.opacity(0.06)
+                )
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(
+                            isSelected
+                                ? Color.white.opacity(0.35)
+                                : Color.white.opacity(0.10),
+                            lineWidth: 0.8
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func slotPreviewButton(index: Int, metric: StatMetric) -> some View {
+        let isSelectedSlot = selectedSlotToCustomize == index
+        return Button {
+            selectedSlotToCustomize = index
+        } label: {
+            VStack(spacing: 1.5) {
+                Text("Slot \(index + 1)")
+                    .font(.system(size: 7.5, weight: .semibold))
+                    .foregroundColor(isSelectedSlot ? .white.opacity(0.9) : .gray)
+                Text(metric.title)
+                    .font(.system(size: 9.5, weight: isSelectedSlot ? .bold : .medium, design: .monospaced))
+                    .foregroundColor(isSelectedSlot ? .white : .white.opacity(0.8))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(isSelectedSlot ? Color.white.opacity(0.20) : Color.white.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(isSelectedSlot ? Color.white.opacity(0.45) : Color.white.opacity(0.12), lineWidth: isSelectedSlot ? 1.2 : 0.8)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Custom Symbol Input View
