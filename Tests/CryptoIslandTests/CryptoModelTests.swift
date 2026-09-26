@@ -87,13 +87,20 @@ final class CryptoModelTests: XCTestCase {
         XCTAssertFalse(settings.isFavorite("BTCUSDT"))
         XCTAssertEqual(settings.favorites.count, 0)
 
-        // Test max 9 favorites cap
-        for i in 1...10 {
-            settings.toggleFavorite("COIN\(i)")
+        // Test max 9 favorites cap (no auto-discard)
+        for i in 1...9 {
+            let res = settings.toggleFavorite("COIN\(i)")
+            XCTAssertTrue(res)
         }
         XCTAssertEqual(settings.favorites.count, 9)
-        XCTAssertFalse(settings.isFavorite("COIN1USDT"))
-        XCTAssertTrue(settings.isFavorite("COIN10USDT"))
+        XCTAssertTrue(settings.isFavorite("COIN1USDT"))
+
+        // Attempting to add 10th coin should be rejected and not discard COIN1
+        let rejected = settings.toggleFavorite("COIN10")
+        XCTAssertFalse(rejected)
+        XCTAssertEqual(settings.favorites.count, 9)
+        XCTAssertTrue(settings.isFavorite("COIN1USDT"))
+        XCTAssertFalse(settings.isFavorite("COIN10USDT"))
     }
 
     func testCryptoSymbolPresetsCount() {

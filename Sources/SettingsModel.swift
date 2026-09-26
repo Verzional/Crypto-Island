@@ -46,15 +46,18 @@ public final class SettingsModel: ObservableObject {
         return favorites.contains(clean)
     }
 
-    public func toggleFavorite(_ symbol: String) {
+    @discardableResult
+    public func toggleFavorite(_ symbol: String) -> Bool {
         let clean = CryptoSymbol.from(rawInput: symbol).symbol
         if let index = favorites.firstIndex(of: clean) {
             favorites.remove(at: index)
+            return true
         } else {
             if favorites.count >= 9 {
-                favorites.removeFirst()
+                return false
             }
             favorites.append(clean)
+            return true
         }
     }
 }
