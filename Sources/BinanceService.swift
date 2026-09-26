@@ -148,9 +148,12 @@ public final class BinanceService: ObservableObject {
             }
 
             guard !Task.isCancelled, !self.isInvalidSymbol, self.currentSymbol.symbol == symbol else { return }
-            // Fetch initial 5m and 15m kline volume
+            // Fetch initial 5m and 15m kline volume, 1h & 4h tickers, and depth
             await self.fetchInitialKlineVolume(interval: "5m")
             await self.fetchInitialKlineVolume(interval: "15m")
+            await self.fetchInitial1hTicker()
+            await self.fetchInitial4hTicker()
+            await self.fetchInitialDepth()
         }
     }
 
@@ -175,15 +178,58 @@ public final class BinanceService: ObservableObject {
             guard !Task.isCancelled, self.currentSymbol.symbol == symbol else { return }
             let v = Double(first[5] as? String ?? "0") ?? 0
             let q = Double(first[7] as? String ?? "0") ?? 0
+            let trades = first.count > 8 ? (first[8] as? Int ?? 0) : 0
             let tbq = first.count > 10 ? (Double(first[10] as? String ?? "0") ?? 0) : 0
             if interval == "5m" {
                 self.ticker?.volume5m = v
                 self.ticker?.quoteVolume5m = q
                 self.ticker?.takerBuyRatio5m = q > 0 ? (tbq / q) * 100 : 50.0
+                self.ticker?.trades5m = trades
             } else if interval == "15m" {
                 self.ticker?.volume15m = v
                 self.ticker?.quoteVolume15m = q
+                self.ticker?.takerBuyRatio15m = q > 0 ? (tbq / q) * 100 : 50.0
             }
+        }
+    }
+
+    private func fetchInitial1hTicker() async {
+        let symbol = currentSymbol.symbol
+        guard let encodedSymbol = symbol.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "\(primaryRestBase)/ticker?symbol=\(encodedSymbol)&windowSize=1h") else { return }
+
+        if let (data, _) = try? await session.data(from: url),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            guard !Task.isCancelled, self.currentSymbol.symbol == symbol else { return }
+            if let pStr = json["priceChangePercent"] as? String, let p = Double(pStr) {
+                self.ticker?.change1h = p
+            }
+        }
+    }
+
+    private func fetchInitial4hTicker() async {
+        let symbol = currentSymbol.symbol
+        guard let encodedSymbol = symbol.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "\(primaryRestBase)/ticker?symbol=\(encodedSymbol)&windowSize=4h") else { return }
+
+        if let (data, _) = try? await session.data(from: url),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            guard !Task.isCancelled, self.currentSymbol.symbol == symbol else { return }
+            if let pStr = json["priceChangePercent"] as? String, let p = Double(pStr) {
+                self.ticker?.change4h = p
+            }
+        }
+    }
+
+    private func fetchInitialDepth() async {
+        let symbol = currentSymbol.symbol
+        guard let encodedSymbol = symbol.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "\(primaryRestBase)/depth?symbol=\(encodedSymbol)&limit=20") else { return }
+
+        if let (data, _) = try? await session.data(from: url),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            guard !Task.isCancelled, self.currentSymbol.symbol == symbol else { return }
+            self.handleDepthData(json)
         }
     }
 
@@ -198,6 +244,15 @@ public final class BinanceService: ObservableObject {
         let vwap = Double(json["weightedAvgPrice"] as? String ?? "0") ?? 0
         let volume = Double(json["volume"] as? String ?? "0") ?? 0
         let quoteVolume = Double(json["quoteVolume"] as? String ?? "0") ?? 0
+        let trades24h = json["count"] as? Int ?? 0
+        let bidPrice = Double(json["bidPrice"] as? String ?? "0") ?? 0
+        let askPrice = Double(json["askPrice"] as? String ?? "0") ?? 0
+
+        let currentChange1h = self.ticker?.change1h ?? 0
+        let currentChange4h = self.ticker?.change4h ?? 0
+        let currentBidDepth20 = self.ticker?.bidDepth20 ?? 0
+        let currentAskDepth20 = self.ticker?.askDepth20 ?? 0
+        let currentBookImbalance = self.ticker?.bookImbalance ?? 50.0
 
         self.ticker = TickerData(
             symbol: currentSymbol.symbol,
@@ -209,6 +264,14 @@ public final class BinanceService: ObservableObject {
             vwap: vwap,
             volume: volume,
             quoteVolume: quoteVolume,
+            trades24h: trades24h,
+            bidPrice: bidPrice,
+            askPrice: askPrice,
+            change1h: currentChange1h,
+            change4h: currentChange4h,
+            bidDepth20: currentBidDepth20,
+            askDepth20: currentAskDepth20,
+            bookImbalance: currentBookImbalance,
             lastUpdated: Date(),
             direction: .neutral
         )
@@ -219,7 +282,7 @@ public final class BinanceService: ObservableObject {
         guard !isInvalidSymbol else { return }
         reconnectTimer?.invalidate()
         let symbolLower = currentSymbol.symbol.lowercased()
-        let streamPath = "\(primaryWsBase)/stream?streams=\(symbolLower)@ticker/\(symbolLower)@kline_5m/\(symbolLower)@kline_15m"
+        let streamPath = "\(primaryWsBase)/stream?streams=\(symbolLower)@ticker/\(symbolLower)@ticker_1h/\(symbolLower)@ticker_4h/\(symbolLower)@kline_5m/\(symbolLower)@kline_15m/\(symbolLower)@depth20@1000ms"
         guard let url = URL(string: streamPath) else { return }
 
         webSocketTask = session.webSocketTask(with: url)
@@ -266,7 +329,13 @@ public final class BinanceService: ObservableObject {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
 
         if let stream = json["stream"] as? String, let payload = json["data"] as? [String: Any] {
-            if stream.contains("@ticker") {
+            if stream.contains("@ticker_1h") {
+                handle1hTicker(payload)
+            } else if stream.contains("@ticker_4h") {
+                handle4hTicker(payload)
+            } else if stream.contains("@depth20") {
+                handleDepthData(payload)
+            } else if stream.contains("@ticker") {
                 handleTickerData(payload)
             } else if stream.contains("@kline_5m") {
                 handleKlineData(payload, interval: "5m")
@@ -278,6 +347,47 @@ public final class BinanceService: ObservableObject {
         }
     }
 
+    private func handle1hTicker(_ json: [String: Any]) {
+        if let pStr = json["P"] as? String, let p = Double(pStr) {
+            self.ticker?.change1h = p
+        }
+    }
+
+    private func handle4hTicker(_ json: [String: Any]) {
+        if let pStr = json["P"] as? String, let p = Double(pStr) {
+            self.ticker?.change4h = p
+        }
+    }
+
+    private func handleDepthData(_ json: [String: Any]) {
+        guard let bids = json["bids"] as? [[Any]],
+              let asks = json["asks"] as? [[Any]] else { return }
+
+        var totalBidDepth: Double = 0
+        for bid in bids {
+            guard bid.count >= 2 else { continue }
+            let p = (bid[0] as? Double) ?? Double(bid[0] as? String ?? "") ?? 0
+            let q = (bid[1] as? Double) ?? Double(bid[1] as? String ?? "") ?? 0
+            totalBidDepth += (p * q)
+        }
+
+        var totalAskDepth: Double = 0
+        for ask in asks {
+            guard ask.count >= 2 else { continue }
+            let p = (ask[0] as? Double) ?? Double(ask[0] as? String ?? "") ?? 0
+            let q = (ask[1] as? Double) ?? Double(ask[1] as? String ?? "") ?? 0
+            totalAskDepth += (p * q)
+        }
+
+        self.ticker?.bidDepth20 = totalBidDepth
+        self.ticker?.askDepth20 = totalAskDepth
+
+        let combined = totalBidDepth + totalAskDepth
+        if combined > 0 {
+            self.ticker?.bookImbalance = (totalBidDepth / combined) * 100.0
+        }
+    }
+
     private func handleKlineData(_ json: [String: Any], interval: String) {
         guard let k = json["k"] as? [String: Any],
               let vStr = k["v"] as? String, let v = Double(vStr),
@@ -285,14 +395,17 @@ public final class BinanceService: ObservableObject {
 
         let tbqStr = k["Q"] as? String
         let tbq = Double(tbqStr ?? "0") ?? 0
+        let trades = k["n"] as? Int ?? 0
 
         if interval == "5m" {
             self.ticker?.volume5m = v
             self.ticker?.quoteVolume5m = q
             self.ticker?.takerBuyRatio5m = q > 0 ? (tbq / q) * 100 : 50.0
+            self.ticker?.trades5m = trades
         } else if interval == "15m" {
             self.ticker?.volume15m = v
             self.ticker?.quoteVolume15m = q
+            self.ticker?.takerBuyRatio15m = q > 0 ? (tbq / q) * 100 : 50.0
         }
     }
 
@@ -307,6 +420,9 @@ public final class BinanceService: ObservableObject {
         let vwap = Double(json["w"] as? String ?? "0") ?? (self.ticker?.vwap ?? 0)
         let volume = Double(json["v"] as? String ?? "0") ?? 0
         let quoteVolume = Double(json["q"] as? String ?? "0") ?? 0
+        let trades24h = json["n"] as? Int ?? (self.ticker?.trades24h ?? 0)
+        let bidPrice = Double(json["b"] as? String ?? "0") ?? (self.ticker?.bidPrice ?? 0)
+        let askPrice = Double(json["a"] as? String ?? "0") ?? (self.ticker?.askPrice ?? 0)
 
         var direction: PriceDirection = .neutral
         if let oldPrice = self.ticker?.price {
@@ -322,8 +438,15 @@ public final class BinanceService: ObservableObject {
         let current5m = self.ticker?.volume5m ?? 0
         let currentQuote5m = self.ticker?.quoteVolume5m ?? 0
         let currentTakerBuyRatio5m = self.ticker?.takerBuyRatio5m ?? 50.0
+        let currentTrades5m = self.ticker?.trades5m ?? 0
         let current15m = self.ticker?.volume15m ?? 0
         let currentQuote15m = self.ticker?.quoteVolume15m ?? 0
+        let currentTakerBuyRatio15m = self.ticker?.takerBuyRatio15m ?? 50.0
+        let currentChange1h = self.ticker?.change1h ?? 0
+        let currentChange4h = self.ticker?.change4h ?? 0
+        let currentBidDepth20 = self.ticker?.bidDepth20 ?? 0
+        let currentAskDepth20 = self.ticker?.askDepth20 ?? 0
+        let currentBookImbalance = self.ticker?.bookImbalance ?? 50.0
 
         self.ticker = TickerData(
             symbol: currentSymbol.symbol,
@@ -340,6 +463,16 @@ public final class BinanceService: ObservableObject {
             takerBuyRatio5m: currentTakerBuyRatio5m,
             volume15m: current15m,
             quoteVolume15m: currentQuote15m,
+            takerBuyRatio15m: currentTakerBuyRatio15m,
+            trades24h: trades24h,
+            trades5m: currentTrades5m,
+            bidPrice: bidPrice,
+            askPrice: askPrice,
+            change1h: currentChange1h,
+            change4h: currentChange4h,
+            bidDepth20: currentBidDepth20,
+            askDepth20: currentAskDepth20,
+            bookImbalance: currentBookImbalance,
             lastUpdated: Date(),
             direction: direction
         )
