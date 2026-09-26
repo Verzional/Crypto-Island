@@ -215,6 +215,7 @@ public final class DynamicIslandController: NSObject, ObservableObject {
     @Published public var isExpanded: Bool = false
     @Published public var isHovered: Bool = false
     @Published public var isCustomInputShowing: Bool = false
+    @Published public var isCustomizingGrid: Bool = false
     public var isCollapsing: Bool = false
 
     private var hostingView: DynamicIslandHostingView<AnyView>?
@@ -255,10 +256,21 @@ public final class DynamicIslandController: NSObject, ObservableObject {
                     withAnimation(Self.expandAnimation) {
                         self.isExpanded = true
                     }
-                } else if !pinned && !self.isHovered && !self.isCustomInputShowing && self.isExpanded {
+                } else if !pinned && !self.isHovered && !self.isCustomInputShowing && !self.isCustomizingGrid && self.isExpanded {
                     withAnimation(Self.collapseAnimation) {
                         self.isExpanded = false
                     }
+                }
+            }
+            .store(in: &cancellables)
+
+        Publishers.CombineLatest($isCustomInputShowing, $isCustomizingGrid)
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isCustomShowing, isCustomizing in
+                guard let self = self else { return }
+                if !isCustomShowing && !isCustomizing && !self.isHovered && !self.settings.isPinned && self.isExpanded {
+                    self.handleHover(false)
                 }
             }
             .store(in: &cancellables)
@@ -302,12 +314,12 @@ public final class DynamicIslandController: NSObject, ObservableObject {
                 }
             }
         } else {
-            guard isExpanded, !settings.isPinned, !isCustomInputShowing else { return }
+            guard isExpanded, !settings.isPinned, !isCustomInputShowing, !isCustomizingGrid else { return }
 
             collapseWorkItem?.cancel()
             let work = DispatchWorkItem { [weak self] in
                 guard let self = self else { return }
-                guard !self.isHovered, !self.settings.isPinned, !self.isCustomInputShowing, self.isExpanded else { return }
+                guard !self.isHovered, !self.settings.isPinned, !self.isCustomInputShowing, !self.isCustomizingGrid, self.isExpanded else { return }
                 self.isCollapsing = true
                 withAnimation(Self.collapseAnimation) {
                     self.isExpanded = false
