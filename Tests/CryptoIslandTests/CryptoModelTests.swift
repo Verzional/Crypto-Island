@@ -126,4 +126,88 @@ final class CryptoModelTests: XCTestCase {
         service.revertToLastValidSymbol()
         XCTAssertEqual(service.currentSymbol.baseAsset, "ETH")
     }
+
+    func testStatMetricCasesAndDefaults() {
+        XCTAssertEqual(StatMetric.allCases.count, 22)
+        XCTAssertEqual(MetricCategory.allCases.count, 5)
+        XCTAssertEqual(StatMetric.defaultSlots.count, 6)
+        XCTAssertEqual(StatMetric.defaultSlots, [
+            .high24h, .quoteVolume15m, .vwap,
+            .low24h, .quoteVolume5m, .takerBuyRatio5m
+        ])
+        for metric in StatMetric.allCases {
+            XCTAssertFalse(metric.title.isEmpty)
+            XCTAssertFalse(metric.shortDescription.isEmpty)
+            XCTAssertNotEqual(metric.category, .all)
+        }
+    }
+
+    @MainActor
+    func testSettingsGridSlotsCustomizationAndReset() {
+        let settings = SettingsModel()
+        settings.resetGridSlots()
+        XCTAssertEqual(settings.gridSlots.count, 6)
+        XCTAssertEqual(settings.gridSlots[0], .high24h)
+        XCTAssertEqual(settings.gridSlots[1], .quoteVolume15m)
+        XCTAssertEqual(settings.gridSlots[3], .low24h)
+        XCTAssertEqual(settings.gridSlots[5], .takerBuyRatio5m)
+
+        // Customizing a slot (e.g. changing slot 5 from takerBuyRatio5m to baseVolume24h)
+        settings.updateGridSlot(at: 5, to: .baseVolume24h)
+        XCTAssertEqual(settings.gridSlots[5], .baseVolume24h)
+
+        // Customizing slot 0 to trades24h
+        settings.updateGridSlot(at: 0, to: .trades24h)
+        XCTAssertEqual(settings.gridSlots[0], .trades24h)
+
+        // Customizing slot 2 to bookImbalance
+        settings.updateGridSlot(at: 2, to: .bookImbalance)
+        XCTAssertEqual(settings.gridSlots[2], .bookImbalance)
+
+        // Out of bounds update should be ignored safely
+        settings.updateGridSlot(at: 99, to: .vwap)
+        settings.updateGridSlot(at: -1, to: .vwap)
+        XCTAssertEqual(settings.gridSlots.count, 6)
+
+        // Reset should restore default slots
+        settings.resetGridSlots()
+        XCTAssertEqual(settings.gridSlots, StatMetric.defaultSlots)
+    }
+
+    func testAdditionalTickerDataFormatters() {
+        let ticker = TickerData(
+            symbol: "BTCUSDT",
+            price: 65000.0,
+            priceChange: -1250.0,
+            volume: 12500.5,
+            quoteVolume: 812500000.0,
+            volume15m: 100.0,
+            quoteVolume15m: 6500000.0,
+            takerBuyRatio15m: 58.4,
+            trades24h: 1250000,
+            trades5m: 4320,
+            bidPrice: 64999.50,
+            askPrice: 65000.10,
+            change1h: 1.45,
+            change4h: -2.30,
+            bidDepth20: 3200000.0,
+            askDepth20: 2100000.0,
+            bookImbalance: 60.38
+        )
+        XCTAssertEqual(ticker.formattedBaseVolume, "12.501K")
+        XCTAssertEqual(ticker.formattedPriceChange, "-$1,250.00")
+        XCTAssertEqual(ticker.formattedOpenPrice, "$66,250.00")
+        XCTAssertEqual(ticker.formattedTrades24h, "1.25M")
+        XCTAssertEqual(ticker.formattedTrades5m, "4.3K")
+        XCTAssertEqual(ticker.formattedTakerBuyRatio15m, "58%")
+        XCTAssertEqual(ticker.formattedBid, "$64,999.50")
+        XCTAssertEqual(ticker.formattedAsk, "$65,000.10")
+        XCTAssertEqual(ticker.formattedSpread, "$0.60")
+        XCTAssertEqual(ticker.formattedAvgTradeSize, "650.000")
+        XCTAssertEqual(ticker.formattedChange1h, "+1.45%")
+        XCTAssertEqual(ticker.formattedChange4h, "-2.30%")
+        XCTAssertEqual(ticker.formattedBidDepth20, "3.200M")
+        XCTAssertEqual(ticker.formattedAskDepth20, "2.100M")
+        XCTAssertEqual(ticker.formattedBookImbalance, "60% Bids")
+    }
 }
