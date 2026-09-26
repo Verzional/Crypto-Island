@@ -179,7 +179,9 @@ public struct TickerData: Equatable {
     private func formatPriceValue(_ value: Double) -> String {
         guard value > 0 else { return "$0.00" }
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
 
         if value >= 1000 {
             formatter.minimumFractionDigits = 2
