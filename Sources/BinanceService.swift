@@ -7,7 +7,6 @@ public final class BinanceService: ObservableObject {
     @Published public var currentSymbol: CryptoSymbol {
         didSet {
             if oldValue.symbol != currentSymbol.symbol {
-                saveSelectedSymbol()
                 restartConnection()
             }
         }
@@ -17,23 +16,24 @@ public final class BinanceService: ObservableObject {
     @Published public private(set) var isConnected: Bool = false
     @Published public private(set) var errorMessage: String?
     @Published public private(set) var flashDirection: PriceDirection?
+    @Published public private(set) var isInvalidSymbol: Bool = false
+    private var lastValidSymbol: CryptoSymbol
 
-    // Network & Endpoints
+    // Network & Endpoints (Binance Vision unblocked public cluster)
     private let primaryWsBase = "wss://data-stream.binance.vision:9443"
-    private let fallbackWsBase = "wss://stream.binance.com:9443"
     private let primaryRestBase = "https://data-api.binance.vision/api/v3"
-    private let fallbackRestBase = "https://api.binance.com/api/v3"
 
     private var webSocketTask: URLSessionWebSocketTask?
+    private var fetchTickerTask: Task<Void, Never>?
     private var session: URLSession
     private var reconnectTimer: Timer?
     private var flashResetWorkItem: DispatchWorkItem?
-    private var useFallback: Bool = false
 
     public init(initialSymbol: CryptoSymbol? = nil) {
         let saved = UserDefaults.standard.string(forKey: "CryptoIsland_SelectedSymbol") ?? "BTCUSDT"
         let symbol = initialSymbol ?? CryptoSymbol.from(rawInput: saved)
         self.currentSymbol = symbol
+        self.lastValidSymbol = symbol
         
         let config = URLSessionConfiguration.default
         config.waitsForConnectivity = true
@@ -50,7 +50,24 @@ public final class BinanceService: ObservableObject {
 
     public func selectSymbol(_ symbol: CryptoSymbol) {
         guard symbol.symbol != currentSymbol.symbol else { return }
+        if !isInvalidSymbol && (ticker != nil || CryptoSymbol.presets.contains(where: { $0.symbol == currentSymbol.symbol })) {
+            lastValidSymbol = currentSymbol
+        }
+        isInvalidSymbol = false
+        errorMessage = nil
         currentSymbol = symbol
+    }
+
+    public func revertToLastValidSymbol() {
+        let target: CryptoSymbol
+        if lastValidSymbol.symbol != currentSymbol.symbol {
+            target = lastValidSymbol
+        } else if let fallback = CryptoSymbol.presets.first(where: { $0.symbol != currentSymbol.symbol }) {
+            target = fallback
+        } else {
+            target = CryptoSymbol.presets[0]
+        }
+        selectSymbol(target)
     }
 
     public func start() {
@@ -59,10 +76,14 @@ public final class BinanceService: ObservableObject {
     }
 
     public func restartConnection() {
+        fetchTickerTask?.cancel()
+        fetchTickerTask = nil
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         isConnected = false
         ticker = nil
+        isInvalidSymbol = false
+        errorMessage = nil
         
         fetchInitialTicker()
         connectWebSocket()
@@ -72,47 +93,86 @@ public final class BinanceService: ObservableObject {
         UserDefaults.standard.set(currentSymbol.symbol, forKey: "CryptoIsland_SelectedSymbol")
     }
 
-    // MARK: - REST Fallback / Initial Fetch
+    // MARK: - REST Initial Fetch
     private func fetchInitialTicker() {
-        let symbol = currentSymbol.symbol
-        let baseUrl = useFallback ? fallbackRestBase : primaryRestBase
-        guard let url = URL(string: "\(baseUrl)/ticker/24hr?symbol=\(symbol)") else { return }
+        fetchTickerTask?.cancel()
 
-        Task {
+        let targetSymbol = currentSymbol
+        let symbol = targetSymbol.symbol
+        guard let encodedSymbol = symbol.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "\(primaryRestBase)/ticker/24hr?symbol=\(encodedSymbol)") else {
+            handleInvalidSymbol()
+            return
+        }
+
+        fetchTickerTask = Task { [weak self] in
+            guard let self = self else { return }
             do {
-                let (data, response) = try await session.data(from: url)
-                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                    if !useFallback {
-                        useFallback = true
-                        fetchInitialTicker()
-                    }
+                let (data, response) = try await self.session.data(from: url)
+                guard !Task.isCancelled else { return }
+                guard self.currentSymbol.symbol == symbol else { return }
+
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    self.handleInvalidSymbol()
+                    return
+                }
+
+                // Any 4xx client error (400 bad request, 404 not found) indicates an invalid/unsupported symbol
+                if httpResponse.statusCode >= 400 && httpResponse.statusCode < 500 {
+                    self.handleInvalidSymbol()
+                    return
+                }
+
+                guard httpResponse.statusCode == 200 else {
+                    self.errorMessage = "Service temporarily unavailable (\(httpResponse.statusCode))"
                     return
                 }
 
                 if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let code = json["code"] as? Int, code < 0 {
+                        self.handleInvalidSymbol()
+                        return
+                    }
+                    self.isInvalidSymbol = false
+                    self.errorMessage = nil
+                    self.lastValidSymbol = targetSymbol
+                    self.saveSelectedSymbol()
                     self.processRestTicker(json)
                 }
             } catch {
-                if !useFallback {
-                    useFallback = true
-                    fetchInitialTicker()
-                }
+                guard !Task.isCancelled else { return }
+                guard self.currentSymbol.symbol == symbol else { return }
+                if (error as? URLError)?.code == .cancelled { return }
+
+                self.errorMessage = "Network connection error"
             }
 
+            guard !Task.isCancelled, !self.isInvalidSymbol, self.currentSymbol.symbol == symbol else { return }
             // Fetch initial 5m and 15m kline volume
-            await fetchInitialKlineVolume(interval: "5m")
-            await fetchInitialKlineVolume(interval: "15m")
+            await self.fetchInitialKlineVolume(interval: "5m")
+            await self.fetchInitialKlineVolume(interval: "15m")
         }
+    }
+
+    private func handleInvalidSymbol() {
+        self.isInvalidSymbol = true
+        self.errorMessage = "Coin not found on Binance"
+        self.ticker = nil
+        self.isConnected = false
+        self.webSocketTask?.cancel(with: .goingAway, reason: nil)
+        self.webSocketTask = nil
+        self.reconnectTimer?.invalidate()
     }
 
     private func fetchInitialKlineVolume(interval: String) async {
         let symbol = currentSymbol.symbol
-        let baseUrl = useFallback ? fallbackRestBase : primaryRestBase
-        guard let url = URL(string: "\(baseUrl)/klines?symbol=\(symbol)&interval=\(interval)&limit=1") else { return }
+        guard let encodedSymbol = symbol.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "\(primaryRestBase)/klines?symbol=\(encodedSymbol)&interval=\(interval)&limit=1") else { return }
 
         if let (data, _) = try? await session.data(from: url),
            let arr = try? JSONSerialization.jsonObject(with: data) as? [[Any]],
            let first = arr.first, first.count > 7 {
+            guard !Task.isCancelled, self.currentSymbol.symbol == symbol else { return }
             let v = Double(first[5] as? String ?? "0") ?? 0
             let q = Double(first[7] as? String ?? "0") ?? 0
             let tbq = first.count > 10 ? (Double(first[10] as? String ?? "0") ?? 0) : 0
@@ -156,10 +216,10 @@ public final class BinanceService: ObservableObject {
 
     // MARK: - WebSocket Live Streaming
     private func connectWebSocket() {
+        guard !isInvalidSymbol else { return }
         reconnectTimer?.invalidate()
         let symbolLower = currentSymbol.symbol.lowercased()
-        let wsBase = useFallback ? fallbackWsBase : primaryWsBase
-        let streamPath = "\(wsBase)/stream?streams=\(symbolLower)@ticker/\(symbolLower)@kline_5m/\(symbolLower)@kline_15m"
+        let streamPath = "\(primaryWsBase)/stream?streams=\(symbolLower)@ticker/\(symbolLower)@kline_5m/\(symbolLower)@kline_15m"
         guard let url = URL(string: streamPath) else { return }
 
         webSocketTask = session.webSocketTask(with: url)
@@ -190,8 +250,12 @@ public final class BinanceService: ObservableObject {
 
                 case .failure(let error):
                     self.isConnected = false
-                    self.errorMessage = error.localizedDescription
-                    self.scheduleReconnect()
+                    if !self.isInvalidSymbol {
+                        if (error as? URLError)?.code != .cancelled && !error.localizedDescription.contains("cancelled") {
+                            self.errorMessage = error.localizedDescription
+                            self.scheduleReconnect()
+                        }
+                    }
                 }
             }
         }
@@ -295,11 +359,11 @@ public final class BinanceService: ObservableObject {
     }
 
     private func scheduleReconnect() {
+        guard !isInvalidSymbol else { return }
         reconnectTimer?.invalidate()
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                self.useFallback.toggle() // Try alternate endpoint if primary disconnected
+                guard let self = self, !self.isInvalidSymbol else { return }
                 self.connectWebSocket()
             }
         }
