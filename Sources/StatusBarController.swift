@@ -26,23 +26,15 @@ public final class StatusBarController: NSObject {
     }
 
     private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        updateStatusItemTitle()
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        configureStatusItemIcon()
         rebuildMenu()
     }
 
     private func observeData() {
-        binanceService.$ticker
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.updateStatusItemTitle()
-            }
-            .store(in: &cancellables)
-
         binanceService.$currentSymbol
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.updateStatusItemTitle()
                 self?.rebuildMenu()
             }
             .store(in: &cancellables)
@@ -76,14 +68,24 @@ public final class StatusBarController: NSObject {
             .store(in: &cancellables)
     }
 
-    private func updateStatusItemTitle() {
+    private func configureStatusItemIcon() {
         guard let button = statusItem?.button else { return }
-        let symbol = binanceService.currentSymbol.baseAsset
-        if let ticker = binanceService.ticker {
-            button.title = "\(symbol) \(ticker.formattedPrice)"
-        } else {
-            button.title = "\(symbol) --"
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        if let symbol = NSImage(systemSymbolName: "bitcoinsign.circle", accessibilityDescription: "CryptoIsland")?.withSymbolConfiguration(config) {
+            // SF Symbols carry a font baseline that causes NSStatusBarButton to offset the circle 0.5pt (1px) too high.
+            // Drawing the symbol inside an exact canvas normalizes alignment to achieve a 1:1 pixel match with the Play icon.
+            let icon = NSImage(size: symbol.size, flipped: false) { rect in
+                var drawRect = rect
+                drawRect.origin.y += 0.5
+                symbol.draw(in: drawRect)
+                return true
+            }
+            icon.isTemplate = true
+            button.image = icon
+            button.imagePosition = .imageOnly
         }
+        button.title = ""
+        button.toolTip = nil
     }
 
     private func rebuildMenu() {
