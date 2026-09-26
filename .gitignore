@@ -8,3 +8,4 @@ DerivedData/
 project.xcworkspace/
 build/
 *.app
+reload.sh
