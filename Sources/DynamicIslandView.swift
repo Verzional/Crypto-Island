@@ -98,6 +98,8 @@ public struct DynamicIslandView: View {
 
     @State private var customSymbolText: String = ""
     @State private var isSearchHovered: Bool = false
+    @State private var isBackHovered: Bool = false
+    @State private var hoveredPillSymbol: String? = nil
     @FocusState private var isSearchFocused: Bool
 
     private var geometry: NotchGeometry {
@@ -119,10 +121,24 @@ public struct DynamicIslandView: View {
             ZStack(alignment: .top) {
                 if controller.isExpanded {
                     expandedView
-                        .transition(.opacity)
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity
+                                    .combined(with: .scale(scale: 0.94, anchor: .top))
+                                    .combined(with: .offset(y: -6)),
+                                removal: .opacity
+                                    .combined(with: .scale(scale: 0.96, anchor: .top))
+                            )
+                        )
                 } else {
                     collapsedView
-                        .transition(.opacity)
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity
+                                    .combined(with: .scale(scale: 0.95, anchor: .center)),
+                                removal: .opacity
+                            )
+                        )
                 }
             }
             .frame(
@@ -185,14 +201,20 @@ public struct DynamicIslandView: View {
                 Spacer(minLength: 8)
             }
 
-            // Right Ear: Price (no green dot)
-            HStack(spacing: 6) {
-                if let ticker = binanceService.ticker {
+            // Right Ear: Price or Error State
+            HStack(spacing: 4) {
+                if binanceService.isInvalidSymbol {
+                    Text("Not Found")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.65))
+                } else if let ticker = binanceService.ticker {
                     Text(ticker.formattedPrice)
                         .font(.system(size: 13, weight: .semibold, design: .monospaced))
                         .foregroundColor(flashColor(for: ticker))
                         .lineLimit(1)
                         .minimumScaleFactor(0.70)
+                        .contentTransition(.numericText())
+                        .animation(.spring(response: 0.28, dampingFraction: 0.8), value: ticker.price)
                 } else {
                     RoundedRectangle(cornerRadius: 3.5, style: .continuous)
                         .fill(Color.white.opacity(0.18))
@@ -224,7 +246,9 @@ public struct DynamicIslandView: View {
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
                                 .foregroundColor(.gray)
                         }
-                        favoriteStarButton
+                        if !binanceService.isInvalidSymbol {
+                            favoriteStarButton
+                        }
                     }
                     .padding(.leading, 14)
                     .frame(width: (geometry.expandedWidth - geometry.notchWidth) / 2, height: 22, alignment: .leading)
@@ -253,7 +277,9 @@ public struct DynamicIslandView: View {
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
                                 .foregroundColor(.gray)
                         }
-                        favoriteStarButton
+                        if !binanceService.isInvalidSymbol {
+                            favoriteStarButton
+                        }
                     }
                     .padding(.leading, 14)
                     .offset(y: 2)
@@ -323,7 +349,9 @@ public struct DynamicIslandView: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            isSearchHovered = hovering
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isSearchHovered = hovering
+            }
         }
         .popover(isPresented: $controller.isCustomInputShowing, arrowEdge: .bottom) {
             customSymbolInputView
@@ -334,15 +362,21 @@ public struct DynamicIslandView: View {
         VStack(spacing: 0) {
             expandedTopBar
 
-            // Content below notch
-            VStack(spacing: 8) {
+            if binanceService.isInvalidSymbol {
+                invalidSymbolErrorView
+            } else {
+                // Content below notch
+                VStack(spacing: 8) {
                 // Price & 24h Change Row (grouped together on the left)
                 HStack(alignment: .center, spacing: 8) {
                     if let ticker = binanceService.ticker {
                         Text(ticker.formattedPrice)
                             .font(.system(size: 18, weight: .bold, design: .monospaced))
                             .foregroundColor(flashColor(for: ticker))
-                            .animation(.easeInOut(duration: 0.2), value: binanceService.flashDirection)
+                            .contentTransition(.numericText())
+                            .animation(.spring(response: 0.28, dampingFraction: 0.8), value: ticker.price)
+                            .scaleEffect(binanceService.flashDirection != nil ? 1.03 : 1.0)
+                            .animation(.spring(response: 0.24, dampingFraction: 0.62), value: binanceService.flashDirection)
 
                         // Change Badge (Inline with price)
                         HStack(spacing: 3) {
@@ -350,6 +384,8 @@ public struct DynamicIslandView: View {
                                 .font(.system(size: 9, weight: .bold))
                             Text(ticker.formattedChangePercent)
                                 .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                .contentTransition(.numericText())
+                                .animation(.spring(response: 0.28, dampingFraction: 0.8), value: ticker.priceChangePercent)
                         }
                         .padding(.horizontal, 7)
                         .frame(height: 20)
@@ -427,6 +463,127 @@ public struct DynamicIslandView: View {
             .padding(.bottom, 14)
         }
     }
+}
+
+    private var invalidSymbolErrorView: some View {
+        VStack(spacing: 16) {
+            Spacer(minLength: 4)
+
+            // 1. Error Announcement
+            VStack(spacing: 3) {
+                Text("Pair Not Found")
+                    .font(.system(size: 13.5, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+
+                Text("\"\(binanceService.currentSymbol.baseAsset)/\(binanceService.currentSymbol.quoteAsset)\" is not listed on Binance Spot")
+                    .font(.system(size: 10.5, weight: .regular, design: .rounded))
+                    .foregroundColor(.white.opacity(0.55))
+                    .lineLimit(1)
+            }
+
+            // 2. Unified Action Shelf: [ ⤺ Back ] │ [ ARB ] [ PUMP ] [ NEAR ] ...
+            HStack(spacing: 7) {
+                // Back Button (Prominent recovery button)
+                Button {
+                    binanceService.revertToLastValidSymbol()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("Back")
+                            .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(height: 24)
+                    .background(
+                        LinearGradient(
+                            colors: isBackHovered
+                                ? [Color.white.opacity(0.25), Color.white.opacity(0.16)]
+                                : [Color.white.opacity(0.16), Color.white.opacity(0.09)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .foregroundColor(.white)
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                isBackHovered
+                                    ? Color.white.opacity(0.35)
+                                    : Color.white.opacity(0.18),
+                                lineWidth: 0.8
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isBackHovered = hovering
+                    }
+                }
+
+                // Subtle separator between "Back" and shortcut coins
+                Rectangle()
+                    .fill(Color.white.opacity(0.15))
+                    .frame(width: 1, height: 14)
+                    .padding(.horizontal, 1)
+
+                // Favorite / Popular Coin Pills (Direct shortcuts, no redundant labels)
+                ForEach(quickSwitchSymbols, id: \.self) { sym in
+                    Button {
+                        binanceService.selectSymbol(sym)
+                    } label: {
+                        Text(sym.baseAsset)
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 9)
+                            .frame(height: 24)
+                            .background(
+                                hoveredPillSymbol == sym.symbol
+                                    ? Color.white.opacity(0.20)
+                                    : Color.white.opacity(0.08)
+                            )
+                            .foregroundColor(.white)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(
+                                        hoveredPillSymbol == sym.symbol
+                                            ? Color.white.opacity(0.32)
+                                            : Color.white.opacity(0.12),
+                                        lineWidth: 0.8
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        withAnimation(.easeInOut(duration: 0.12)) {
+                            hoveredPillSymbol = hovering ? sym.symbol : nil
+                        }
+                    }
+                }
+            }
+
+            Spacer(minLength: 6)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 6)
+        .transition(.opacity)
+    }
+
+    private var quickSwitchSymbols: [CryptoSymbol] {
+        let favs = settings.favorites.compactMap { fav in
+            CryptoSymbol.presets.first(where: { $0.symbol == fav }) ?? CryptoSymbol.from(rawInput: fav)
+        }.filter { $0.symbol != binanceService.currentSymbol.symbol }
+
+        if !favs.isEmpty {
+            return Array(favs.prefix(6))
+        } else {
+            return Array(CryptoSymbol.presets.filter { $0.symbol != binanceService.currentSymbol.symbol }.prefix(5))
+        }
+    }
 
     private func statColumn(
         title: String,
@@ -445,6 +602,8 @@ public struct DynamicIslandView: View {
                     .foregroundColor(valueColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                    .contentTransition(.numericText())
+                    .animation(.spring(response: 0.28, dampingFraction: 0.8), value: val)
             } else {
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(Color.white.opacity(0.16))
@@ -508,6 +667,14 @@ public struct DynamicIslandView: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(isSearchFocused ? Color.white.opacity(0.3) : Color.white.opacity(0.12), lineWidth: 0.8)
             )
+
+            if binanceService.isInvalidSymbol {
+                Text("Symbol not found on Binance")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.65))
+                    .padding(.horizontal, 2)
+                    .transition(.opacity)
+            }
 
             // Favorites Grid (Dynamic user favorites, max 9)
             VStack(alignment: .leading, spacing: 8) {
