@@ -24,6 +24,13 @@ public final class SettingsModel: ObservableObject {
         didSet { UserDefaults.standard.set(favorites, forKey: "CryptoIsland_Favorites") }
     }
 
+    @Published public var gridSlots: [StatMetric] {
+        didSet {
+            let raw = gridSlots.map { $0.rawValue }
+            UserDefaults.standard.set(raw, forKey: "CryptoIsland_GridSlots")
+        }
+    }
+
     public init() {
         self.isPinned = UserDefaults.standard.bool(forKey: "CryptoIsland_IsPinned")
         self.stealthMode = UserDefaults.standard.bool(forKey: "CryptoIsland_StealthMode")
@@ -39,6 +46,26 @@ public final class SettingsModel: ObservableObject {
         } else {
             self.favorites = saved
         }
+
+        let oldDefaultsV1 = ["24h_high", "24h_low", "vwap", "15m_vol", "5m_vol", "5m_buy_ratio"]
+        let savedSlots = UserDefaults.standard.stringArray(forKey: "CryptoIsland_GridSlots") ?? []
+        let parsedSlots = savedSlots.compactMap { StatMetric(rawValue: $0) }
+        if parsedSlots.count == 6 && savedSlots != oldDefaultsV1 {
+            self.gridSlots = parsedSlots
+        } else {
+            self.gridSlots = StatMetric.defaultSlots
+            let raw = StatMetric.defaultSlots.map { $0.rawValue }
+            UserDefaults.standard.set(raw, forKey: "CryptoIsland_GridSlots")
+        }
+    }
+
+    public func updateGridSlot(at index: Int, to metric: StatMetric) {
+        guard index >= 0 && index < gridSlots.count else { return }
+        gridSlots[index] = metric
+    }
+
+    public func resetGridSlots() {
+        gridSlots = StatMetric.defaultSlots
     }
 
     public func isFavorite(_ symbol: String) -> Bool {

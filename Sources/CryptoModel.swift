@@ -116,6 +116,16 @@ public struct TickerData: Equatable {
     public var takerBuyRatio5m: Double
     public var volume15m: Double
     public var quoteVolume15m: Double
+    public var takerBuyRatio15m: Double
+    public var trades24h: Int
+    public var trades5m: Int
+    public var bidPrice: Double
+    public var askPrice: Double
+    public var change1h: Double
+    public var change4h: Double
+    public var bidDepth20: Double
+    public var askDepth20: Double
+    public var bookImbalance: Double
     public let lastUpdated: Date
     public var direction: PriceDirection = .neutral
 
@@ -134,6 +144,16 @@ public struct TickerData: Equatable {
         takerBuyRatio5m: Double = 50.0,
         volume15m: Double = 0.0,
         quoteVolume15m: Double = 0.0,
+        takerBuyRatio15m: Double = 50.0,
+        trades24h: Int = 0,
+        trades5m: Int = 0,
+        bidPrice: Double = 0.0,
+        askPrice: Double = 0.0,
+        change1h: Double = 0.0,
+        change4h: Double = 0.0,
+        bidDepth20: Double = 0.0,
+        askDepth20: Double = 0.0,
+        bookImbalance: Double = 50.0,
         lastUpdated: Date = Date(),
         direction: PriceDirection = .neutral
     ) {
@@ -151,6 +171,16 @@ public struct TickerData: Equatable {
         self.takerBuyRatio5m = takerBuyRatio5m
         self.volume15m = volume15m
         self.quoteVolume15m = quoteVolume15m
+        self.takerBuyRatio15m = takerBuyRatio15m
+        self.trades24h = trades24h
+        self.trades5m = trades5m
+        self.bidPrice = bidPrice
+        self.askPrice = askPrice
+        self.change1h = change1h
+        self.change4h = change4h
+        self.bidDepth20 = bidDepth20
+        self.askDepth20 = askDepth20
+        self.bookImbalance = bookImbalance
         self.lastUpdated = lastUpdated
         self.direction = direction
     }
@@ -235,5 +265,217 @@ public struct TickerData: Equatable {
         } else {
             return String(format: "$%.8f", value)
         }
+    }
+
+    public var formattedBaseVolume: String {
+        formatVolumeValue(volume)
+    }
+
+    public var formattedPriceChange: String {
+        let prefix = priceChange >= 0 ? "+" : "-"
+        return prefix + formatPriceValue(abs(priceChange))
+    }
+
+    public var formattedOpenPrice: String {
+        let open = max(0, price - priceChange)
+        return formatPriceValue(open)
+    }
+
+    public var spread: Double {
+        guard askPrice > 0, bidPrice > 0, askPrice >= bidPrice else { return 0.0 }
+        return askPrice - bidPrice
+    }
+
+    public var formattedSpread: String {
+        guard spread > 0 else { return "--" }
+        return formatPriceValue(spread)
+    }
+
+    public var formattedBid: String {
+        guard bidPrice > 0 else { return "--" }
+        return formatPriceValue(bidPrice)
+    }
+
+    public var formattedAsk: String {
+        guard askPrice > 0 else { return "--" }
+        return formatPriceValue(askPrice)
+    }
+
+    public var formattedTrades24h: String {
+        guard trades24h > 0 else { return "--" }
+        return formatCountValue(trades24h)
+    }
+
+    public var formattedTrades5m: String {
+        guard trades5m > 0 else { return "--" }
+        return formatCountValue(trades5m)
+    }
+
+    public var formattedTakerBuyRatio15m: String {
+        guard quoteVolume15m > 0 else { return "--" }
+        return String(format: "%.0f%%", takerBuyRatio15m)
+    }
+
+    public var formattedAvgTradeSize: String {
+        guard trades24h > 0, quoteVolume > 0 else { return "--" }
+        let avg = quoteVolume / Double(trades24h)
+        return formatVolumeValue(avg)
+    }
+
+    public var formattedChange1h: String {
+        let prefix = change1h >= 0 ? "+" : ""
+        return String(format: "%@%.2f%%", prefix, change1h)
+    }
+
+    public var formattedChange4h: String {
+        let prefix = change4h >= 0 ? "+" : ""
+        return String(format: "%@%.2f%%", prefix, change4h)
+    }
+
+    public var formattedBidDepth20: String {
+        guard bidDepth20 > 0 else { return "--" }
+        return formatVolumeValue(bidDepth20)
+    }
+
+    public var formattedAskDepth20: String {
+        guard askDepth20 > 0 else { return "--" }
+        return formatVolumeValue(askDepth20)
+    }
+
+    public var formattedBookImbalance: String {
+        guard bidDepth20 > 0 || askDepth20 > 0 else { return "--" }
+        return String(format: "%.0f%% Bids", bookImbalance)
+    }
+
+    private func formatCountValue(_ count: Int) -> String {
+        let val = Double(count)
+        if val >= 1_000_000 {
+            return String(format: "%.2fM", val / 1_000_000)
+        } else if val >= 1_000 {
+            return String(format: "%.1fK", val / 1_000)
+        } else {
+            return "\(count)"
+        }
+    }
+}
+
+/// Categories for grouping metrics in the popover customization view
+public enum MetricCategory: String, CaseIterable, Identifiable, Codable {
+    case all = "All"
+    case price = "Price"
+    case volume = "Volume"
+    case depth = "Depth"
+    case flow = "Flow"
+
+    public var id: String { rawValue }
+    public var title: String { rawValue }
+}
+
+/// Configurable statistic metrics for the 6-slot expanded Dynamic Island grid
+public enum StatMetric: String, CaseIterable, Identifiable, Codable {
+    // Price
+    case high24h = "24h_high"
+    case low24h = "24h_low"
+    case openPrice = "open_price"
+    case priceChange = "24h_change"
+    case change1h = "1h_change"
+    case change4h = "4h_change"
+    case vwap = "vwap"
+
+    // Volume
+    case quoteVolume24h = "24h_vol_usdt"
+    case baseVolume24h = "24h_vol_base"
+    case quoteVolume15m = "15m_vol"
+    case quoteVolume5m = "5m_vol"
+    case trades24h = "24h_trades"
+    case trades5m = "5m_trades"
+    case avgTradeSize = "avg_trade"
+
+    // Depth
+    case bookImbalance = "book_imbalance"
+    case bidDepth20 = "bid_depth_20"
+    case askDepth20 = "ask_depth_20"
+    case spread = "spread"
+    case bestBid = "best_bid"
+    case bestAsk = "best_ask"
+
+    // Flow
+    case takerBuyRatio5m = "5m_buy_ratio"
+    case takerBuyRatio15m = "15m_buy_ratio"
+
+    public var id: String { rawValue }
+
+    public var category: MetricCategory {
+        switch self {
+        case .high24h, .low24h, .openPrice, .priceChange, .change1h, .change4h, .vwap:
+            return .price
+        case .quoteVolume24h, .baseVolume24h, .quoteVolume15m, .quoteVolume5m, .trades24h, .trades5m, .avgTradeSize:
+            return .volume
+        case .bookImbalance, .bidDepth20, .askDepth20, .spread, .bestBid, .bestAsk:
+            return .depth
+        case .takerBuyRatio5m, .takerBuyRatio15m:
+            return .flow
+        }
+    }
+
+    public var title: String {
+        switch self {
+        case .high24h: return "24h High"
+        case .low24h: return "24h Low"
+        case .vwap: return "VWAP"
+        case .quoteVolume24h: return "24h Vol $"
+        case .baseVolume24h: return "24h Vol"
+        case .priceChange: return "24h Net $"
+        case .openPrice: return "Open"
+        case .change1h: return "1h Change"
+        case .change4h: return "4h Change"
+        case .quoteVolume15m: return "15m Vol"
+        case .quoteVolume5m: return "5m Vol"
+        case .trades24h: return "24h Trades"
+        case .trades5m: return "5m Trades"
+        case .avgTradeSize: return "Avg Trade $"
+        case .bookImbalance: return "Imbalance"
+        case .bidDepth20: return "Bids $"
+        case .askDepth20: return "Asks $"
+        case .spread: return "Spread"
+        case .bestBid: return "Best Bid"
+        case .bestAsk: return "Best Ask"
+        case .takerBuyRatio5m: return "5m Buy %"
+        case .takerBuyRatio15m: return "15m Buy %"
+        }
+    }
+
+    public var shortDescription: String {
+        switch self {
+        case .high24h: return "Highest price in last 24h"
+        case .low24h: return "Lowest price in last 24h"
+        case .vwap: return "Volume-Weighted Average Price"
+        case .quoteVolume24h: return "24h trading volume in USDT"
+        case .baseVolume24h: return "24h volume in base asset tokens"
+        case .priceChange: return "Net dollar change in last 24h"
+        case .openPrice: return "Opening price 24 hours ago"
+        case .change1h: return "1-hour rolling price change"
+        case .change4h: return "4-hour rolling price change"
+        case .quoteVolume15m: return "15-minute trading turnover"
+        case .quoteVolume5m: return "5-minute trading turnover"
+        case .trades24h: return "Total trade transactions in 24h"
+        case .trades5m: return "Trade transaction count in 5m"
+        case .avgTradeSize: return "Average trade size across 24h"
+        case .bookImbalance: return "Top 20 bids vs asks depth ratio"
+        case .bidDepth20: return "Total USDT queued on top 20 bids"
+        case .askDepth20: return "Total USDT queued on top 20 asks"
+        case .spread: return "Bid-Ask spread difference"
+        case .bestBid: return "Top buying bid price in order book"
+        case .bestAsk: return "Top selling ask price in order book"
+        case .takerBuyRatio5m: return "Buyer aggression ratio (5m)"
+        case .takerBuyRatio15m: return "Buyer aggression ratio (15m)"
+        }
+    }
+
+    public static var defaultSlots: [StatMetric] {
+        [
+            .high24h, .quoteVolume15m, .vwap,
+            .low24h, .quoteVolume5m, .takerBuyRatio5m
+        ]
     }
 }
