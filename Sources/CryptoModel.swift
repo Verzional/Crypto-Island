@@ -30,21 +30,53 @@ public struct CryptoSymbol: Identifiable, Hashable, Codable {
         CryptoSymbol(symbol: "LINKUSDT", baseAsset: "LINK", name: "Chainlink", iconSymbol: "link.circle.fill")
     ]
 
-    /// Creates a symbol from user text (e.g. "BTC" or "BTCUSDT")
+    /// Creates a symbol from user text (e.g. "BTC", "BTC/USDT", or "$SOL")
     public static func from(rawInput: String) -> CryptoSymbol {
-        var clean = rawInput.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        if clean.isEmpty { clean = "BTCUSDT" }
-        
+        var trimmed = rawInput.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+
+        // Strip leading currency prefixes like $ or #
+        if trimmed.hasPrefix("$") || trimmed.hasPrefix("#") {
+            trimmed.removeFirst()
+        }
+
+        // Filter valid alphanumeric characters
+        let alphanumericOnly = trimmed.filter { $0.isLetter || $0.isNumber }
+        guard !alphanumericOnly.isEmpty else {
+            return CryptoSymbol(
+                symbol: "INVALIDUSDT",
+                baseAsset: "INVALID",
+                quoteAsset: "USDT",
+                name: "Unknown",
+                iconSymbol: "questionmark.circle"
+            )
+        }
+
         let quote = "USDT"
         let base: String
         let symbol: String
-        
-        if clean.hasSuffix(quote) && clean.count > 4 {
-            symbol = clean
-            base = String(clean.dropLast(quote.count))
+
+        // Check if user separated base and quote with slash, dash, or underscore (e.g. "BTC/USDT", "BTC-USDT")
+        let separators = CharacterSet(charactersIn: "/-_")
+        let parts = trimmed.components(separatedBy: separators).filter { !$0.isEmpty }
+
+        if parts.count >= 2 {
+            let basePart = parts[0].filter { $0.isLetter || $0.isNumber }
+            let quotePart = parts[1].filter { $0.isLetter || $0.isNumber }
+            if !basePart.isEmpty && !quotePart.isEmpty {
+                base = basePart
+                symbol = basePart + quotePart
+            } else {
+                base = alphanumericOnly
+                symbol = alphanumericOnly.hasSuffix(quote) && alphanumericOnly.count > quote.count ? alphanumericOnly : alphanumericOnly + quote
+            }
         } else {
-            base = clean
-            symbol = clean + quote
+            if alphanumericOnly.hasSuffix(quote) && alphanumericOnly.count > quote.count {
+                symbol = alphanumericOnly
+                base = String(alphanumericOnly.dropLast(quote.count))
+            } else {
+                base = alphanumericOnly
+                symbol = alphanumericOnly + quote
+            }
         }
 
         if let existing = presets.first(where: { $0.symbol == symbol }) {

@@ -16,6 +16,27 @@ final class CryptoModelTests: XCTestCase {
         let custom = CryptoSymbol.from(rawInput: "sol")
         XCTAssertEqual(custom.symbol, "SOLUSDT")
         XCTAssertEqual(custom.baseAsset, "SOL")
+
+        // Input with slash separator
+        let slashInput = CryptoSymbol.from(rawInput: "BTC/USDT")
+        XCTAssertEqual(slashInput.symbol, "BTCUSDT")
+        XCTAssertEqual(slashInput.baseAsset, "BTC")
+        XCTAssertEqual(slashInput.quoteAsset, "USDT")
+
+        // Input with currency symbol prefix
+        let prefixInput = CryptoSymbol.from(rawInput: "$SOL")
+        XCTAssertEqual(prefixInput.symbol, "SOLUSDT")
+        XCTAssertEqual(prefixInput.baseAsset, "SOL")
+
+        // Input with dash separator
+        let dashInput = CryptoSymbol.from(rawInput: "eth-usdt")
+        XCTAssertEqual(dashInput.symbol, "ETHUSDT")
+        XCTAssertEqual(dashInput.baseAsset, "ETH")
+
+        // Purely symbols input safely defaults to invalid token
+        let invalidSymbols = CryptoSymbol.from(rawInput: "///")
+        XCTAssertEqual(invalidSymbols.symbol, "INVALIDUSDT")
+        XCTAssertEqual(invalidSymbols.baseAsset, "INVALID")
     }
 
     func testPriceFormattingStandard() {
@@ -80,5 +101,22 @@ final class CryptoModelTests: XCTestCase {
         XCTAssertTrue(CryptoSymbol.presets.contains(where: { $0.baseAsset == "BTC" }))
         XCTAssertTrue(CryptoSymbol.presets.contains(where: { $0.baseAsset == "ETH" }))
         XCTAssertTrue(CryptoSymbol.presets.contains(where: { $0.baseAsset == "SOL" }))
+    }
+
+    @MainActor
+    func testBinanceServiceRevertToLastValidSymbol() {
+        let service = BinanceService(initialSymbol: CryptoSymbol.presets[0]) // BTC
+        XCTAssertEqual(service.currentSymbol.baseAsset, "BTC")
+        
+        let eth = CryptoSymbol.presets[1] // ETH
+        service.selectSymbol(eth)
+        XCTAssertEqual(service.currentSymbol.baseAsset, "ETH")
+        
+        // When user enters an invalid coin and then reverts:
+        service.selectSymbol(CryptoSymbol.from(rawInput: "NONEXISTENT"))
+        XCTAssertEqual(service.currentSymbol.baseAsset, "NONEXISTENT")
+        
+        service.revertToLastValidSymbol()
+        XCTAssertEqual(service.currentSymbol.baseAsset, "ETH")
     }
 }
