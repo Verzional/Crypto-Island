@@ -1,127 +1,131 @@
-# CryptoIsland 🏝️
+# CryptoIsland
 
-[![macOS](https://img.shields.io/badge/macOS-13.0%2B-blue.svg?style=flat-square&logo=apple)](https://www.apple.com/macos/)
+[![macOS](https://img.shields.io/badge/macOS-14.0%2B-black.svg?style=flat-square&logo=apple)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg?style=flat-square&logo=swift)](https://swift.org)
-[![Binance API](https://img.shields.io/badge/Binance-WebSocket%20Live-F0B90B.svg?style=flat-square&logo=binance)](https://binance.com)
-[![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
-A high-performance, native macOS Dynamic Island application that floats above full-screen spaces (including YouTube, Netflix, games, and presentation desktops) to deliver real-time cryptocurrency market intelligence directly from Binance.
+CryptoIsland is a native macOS Dynamic Island utility that displays live cryptocurrency market intelligence directly from Binance. Designed to fit natively into the physical MacBook display notch, it also provides automatic fallback rendering for non-notch displays and external monitors.
 
-Designed specifically for Apple Silicon MacBooks with camera notches, with automatic fallback for non-notch displays and external monitors.
-
----
-
-## Key Features
-
-### 🏝️ Native Hardware & Notch Integration
-- **Zero-Bezel Geometry Matching:** Seamlessly hugs your MacBook's physical camera notch using `auxiliaryTopLeftArea` and `auxiliaryTopRightArea` screen metrics.
-- **Continuous Curvature:** Custom "U" shape notch rendering with exact corner radii and hairline border accents blending directly into the bezel.
-- **Transparent Cursor Pass-Through:** Utilizes coordinate-aware hit-testing to allow clicks, text selections, and gestures beneath the collapsed island to pass straight through to underlying applications.
-- **Fluid Spring Physics:** Custom interactive spring animations (`response: 0.32`, `dampingFraction: 0.82`) for natural expansion and collapse on cursor hover.
-
-### ⚡ Institutional Real-Time Intelligence
-- **Sub-Second Streaming:** Direct WebSocket streams (`@ticker`, `@kline_5m`, `@kline_15m`) with automatic reconnection and fallback routing.
-- **Dynamic Price Action & Ticks:** Real-time green/red tick flash animations and inline percentage change badges.
-- **Institutional Benchmarks (VWAP):** Real-time Volume-Weighted Average Price benchmark to evaluate fair value against current price.
-- **Order Flow & Momentum:**
-  - **15m & 5m Quote Volume:** Rapid detection of sudden volume surges.
-  - **5m Taker Buy Pressure Ratio (`5m Buy %`):** Measures aggressive taker aggression (green $\ge 52\%$, red $\le 48\%$) to gauge market dominance in real time.
-
-### 💎 Micro-Cap & Meme Coin Precision
-- **Smart Adaptive Decimal Formatting:** Automatically formats prices based on magnitude:
-  - $\ge \$1{,}000$: 2 decimals (`$65,432.10`)
-  - $\$1$ to $\$1{,}000$: 2–4 decimals (`$145.20`)
-  - $\$0.01$ to $\$1$: up to 6 decimals (`$0.2277`)
-  - $< \$0.01$: **Full 8-decimal precision** for micro-cap tokens (e.g. PEPE, SHIB at `$0.00000852`) across price, 24h High, 24h Low, and VWAP.
-
-### 🔍 Minimalist Search & Favorites Hub
-- **Dark Glassmorphic Popover:** Frosted-glass search interface built with native macOS materials.
-- **User-Curated Favorites (Max 9):** Star any coin directly from the expanded island (`★`) to pin it to your quick-switch favorites grid.
-- **Keyboard-First Navigation:** Auto-focused input bar; type any symbol (e.g. `SOL`, `NEAR`, `PEPE`) and press `Return (↵)` to switch pairs instantly.
-- **Smart Symbol Parsing:** Automatically appends `USDT` if omitted.
-
-### 🖥️ Full-Screen Video & App Overlay
-- **Floats Over Full-Screen Media:** Runs as a non-activating `NSPanel` at the `.screenSaver` window level with `[.canJoinAllSpaces, .fullScreenAuxiliary]` collection behavior.
-- **Non-Intrusive:** Never steals key window focus or interrupts full-screen video playback.
-- **Menu Bar Companion:** Lightweight status bar item displaying the current ticker and price with quick access to settings.
-- **Global Hotkey:** Press `Control + Option + C` from anywhere to toggle the island.
+The application operates as a floating accessory above full-screen windows and spaces without stealing keyboard focus or interrupting media playback.
 
 ---
 
-## Layout Overview
+## Installation
 
-### Collapsed Notch View
-```
-+---------------+------------------------+---------------+
-|   ARB         |     [ Camera Notch ]   |     $0.2432   |
-+---------------+------------------------+---------------+
-```
+### Download DMG
+Download the latest disk image from [GitHub Releases](https://github.com/Verzional/Crypto-Island/releases):
+1. Download `CryptoIsland.dmg`.
+2. Open the disk image and drag `CryptoIsland.app` to your `/Applications` folder.
+3. Launch CryptoIsland from Applications or Spotlight.
 
-### Expanded Intelligence View
-```
-+--------------------------------------------------------+
-|  ARB / USDT ★        [ Camera Notch ]        [🔍 Search] |
-|--------------------------------------------------------|
-|  $0.2432   [↗ +14.77%]                                 |
-|                                                        |
-|  +--------------------------------------------------+  |
-|  |  24h High      |  24h Low       |  VWAP          |  |
-|  |  $0.2450       |  $0.1962       |  $0.2277       |  |
-|  |----------------+----------------+----------------|  |
-|  |  15m Vol       |  5m Vol        |  5m Buy %      |  |
-|  |  $1.57M        |  $107.9K       |  59% (Takers)  |  |
-|  +--------------------------------------------------+  |
-+--------------------------------------------------------+
-```
-
----
-
-## Technical Stack & Architecture
-
-| Component | Technology | Description |
-| :--- | :--- | :--- |
-| **UI Framework** | SwiftUI & AppKit | Declarative view hierarchy hosted in `NSHostingView` |
-| **Window Subsystem** | `NSPanel` | Borderless, non-activating floating panel with custom hit-testing |
-| **Networking** | `URLSessionWebSocketTask` | Low-latency Binance WebSocket & REST fallback pipeline |
-| **State Management** | Combine & `@Published` | Reactive data flow connecting services to UI |
-| **Persistence** | `UserDefaults` | Persistent storage for user favorites, active symbol, and settings |
-
----
-
-## Getting Started
-
-### Prerequisites
-- macOS 13.0 (Ventura) or later
-- Xcode 15.0 or later / Swift 5.9 toolchain
-
-### Building with Swift Package Manager
+### Homebrew (Coming Soon)
 ```bash
-git clone https://github.com/username/CryptoIsland.git
-cd CryptoIsland
+brew install --cask crypto-island
+```
+
+### Build from Source
+Requirements: macOS 14.0+, Xcode 15.0+ or Swift 5.9 toolchain.
+
+```bash
+git clone https://github.com/Verzional/Crypto-Island.git
+cd Crypto-Island
 swift build -c release
-.build/release/CryptoIsland
 ```
 
-### Running with Xcode
+To build and run directly with Xcode:
 ```bash
-open CryptoIsland.xcodeproj
+open Package.swift
 ```
-Select the **CryptoIsland** scheme and press `Cmd + R` to build and run.
 
 ---
 
-## Controls & Shortcuts
+## Features
 
-| Action | Shortcut / Trigger |
+### Display and Notch Integration
+- **Hardware Notch Alignment:** Hugs MacBook display notches using native `auxiliaryTopLeftArea` and `auxiliaryTopRightArea` screen metrics.
+- **External Monitor Fallback:** Automatically switches to a pill-shaped Dynamic Island on displays without a physical camera notch.
+- **Cursor Pass-Through:** Collapsed state uses non-interfering coordinate hit-testing so clicks, text selections, and drag gestures pass through to underlying applications.
+- **Interactive Spring Motion:** Fluid physics-based expansion on cursor hover with debounced auto-collapse.
+- **Full-Screen Space Overlay:** Runs as a non-activating `NSPanel` at the `.screenSaver` window level with `[.canJoinAllSpaces, .fullScreenAuxiliary]` collection behavior.
+
+### Live Market Feed
+- **Sub-Second WebSocket Feeds:** Connects directly to Binance public Vision stream endpoints (`data-stream.binance.vision:9443`) with automatic exponential backoff reconnection.
+- **Tick Direction Indicators:** Subtle flash transitions indicating upward and downward price movements with percentage change badges.
+- **Adaptive Precision:** Scales formatting from standard 2-decimal fiat representations down to 8-decimal precision for micro-cap tokens.
+
+### Customizable 6-Slot Grid
+The expanded view features a 2x3 statistics grid. Clicking the pencil icon opens an interactive customization popover where any slot can be assigned to one of 22 real-time metrics organized into four semantic categories:
+
+```
+[ All ]   [ Price ]   [ Volume ]   [ Depth ]   [ Flow ]
+```
+
+Active metrics in your grid are automatically hidden from the selection list to prevent duplicate assignments.
+
+| Category | Metric | Identifier | Description |
+| :--- | :--- | :--- | :--- |
+| **Price** | 24h High | `24h_high` | Highest traded price in the last 24 hours |
+| **Price** | 24h Low | `24h_low` | Lowest traded price in the last 24 hours |
+| **Price** | VWAP | `vwap` | Volume-Weighted Average Price |
+| **Price** | Open Price | `open_price` | Price at the start of the 24-hour window |
+| **Price** | 24h Net $ | `24h_change` | Absolute dollar change in the last 24 hours |
+| **Price** | 1h Change | `1h_change` | 1-hour rolling price change percentage |
+| **Price** | 4h Change | `4h_change` | 4-hour rolling price change percentage |
+| **Volume** | 24h Vol $ | `24h_vol_usdt` | 24-hour total quote turnover (USDT) |
+| **Volume** | 24h Vol | `24h_vol_base` | 24-hour total volume in base asset tokens |
+| **Volume** | 15m Vol | `15m_vol` | 15-minute rolling trading turnover |
+| **Volume** | 5m Vol | `5m_vol` | 5-minute rolling trading turnover |
+| **Volume** | 24h Trades | `24h_trades` | Total trade transaction count across 24 hours |
+| **Volume** | 5m Trades | `5m_trades` | Trade transaction count in the last 5 minutes |
+| **Volume** | Avg Trade $ | `avg_trade` | Average transaction size across 24 hours |
+| **Depth** | Book Imbalance | `book_imbalance` | Ratio of queued bids vs asks across top 20 order book levels |
+| **Depth** | Bids $ | `bid_depth_20` | Cumulative USDT value of top 20 buy orders |
+| **Depth** | Asks $ | `ask_depth_20` | Cumulative USDT value of top 20 sell orders |
+| **Depth** | Spread | `spread` | Difference between lowest ask and highest bid |
+| **Depth** | Best Bid | `best_bid` | Highest active buy order price |
+| **Depth** | Best Ask | `best_ask` | Lowest active sell order price |
+| **Flow** | 5m Buy % | `5m_buy_ratio` | Percentage of aggressive taker buy volume over 5 minutes |
+| **Flow** | 15m Buy % | `15m_buy_ratio` | Percentage of aggressive taker buy volume over 15 minutes |
+
+### Search, Favorites, and Pair Management
+- **Search Popover:** Keyboard-first search interface with auto-focus. Type any ticker (e.g., `ETH`, `SOL`, `BTC`) and press `Return` to switch pairs. Omitting the quote asset automatically defaults to `USDT`.
+- **Favorites Shelf:** Pin up to 9 favorite coins using the star button in the header. Quick-switch chips allow one-click toggling between active watches.
+- **Unlisted Recovery Shelf:** If an unlisted or delisted ticker is entered, the UI provides an instant one-click recovery back to the previously active symbol alongside favorite shortcuts.
+
+### Menu Bar Companion and Settings
+- **Status Bar Item:** Companion menu bar item providing instant access to coin selection, settings, and expansion controls.
+- **Launch at Login:** Native support via macOS `SMAppService`.
+- **Pin Mode:** Keeps the Dynamic Island permanently expanded for dedicated monitoring.
+- **Stealth Mode:** Hides the collapsed notch indicator completely until the cursor hovers over the camera notch.
+- **Global Hotkey:** Press `Control + Option + C` anywhere to toggle the island state.
+
+---
+
+## Controls and Shortcuts
+
+| Action | Trigger |
 | :--- | :--- |
-| **Expand / Collapse** | Hover cursor over notch, click collapsed island, or press `Control + Option + C` |
-| **Open Search** | Click `[🔍 Search]` in the top-right ear of the expanded island |
-| **Favorite / Unfavorite Coin** | Click the `★` / `☆` icon beside the coin title in the top-left ear |
-| **Switch Pair** | Type symbol in search bar and press `Return (↵)`, or click any Favorite chip |
-| **Dismiss Popover** | Press `Esc` or click outside the search popover |
+| **Expand / Collapse Island** | Hover cursor over notch, click collapsed island, or press `Control + Option + C` |
+| **Search Pairs** | Click magnifying glass icon in expanded header |
+| **Customize Grid** | Click pencil icon in expanded header |
+| **Favorite / Unfavorite** | Click star icon beside symbol name |
+| **Dismiss Popovers** | Press `Escape` or click outside popover boundary |
+| **Reset Grid to Defaults** | Click `Reset` inside the customization popover |
+
+---
+
+## Architecture
+
+| Layer | Technology | Description |
+| :--- | :--- | :--- |
+| **UI Presentation** | SwiftUI & AppKit | Declarative layouts wrapped in custom `NSHostingView` containers |
+| **Window Subsystem** | `NSPanel` | Floating accessory window with customized hit testing and window levels |
+| **Networking** | `URLSessionWebSocketTask` | Multi-stream WebSocket multiplexer with REST synchronization |
+| **State Flow** | Combine & `@Published` | Unidirectional state management binding network models to views |
+| **Persistence** | `UserDefaults` | Stores user favorites, custom grid slot mappings, and display preferences |
 
 ---
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

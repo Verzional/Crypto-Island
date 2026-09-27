@@ -8,4 +8,5 @@ DerivedData/
 project.xcworkspace/
 build/
 *.app
+*.dmg
 reload.sh
