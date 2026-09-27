@@ -71,7 +71,7 @@ public final class StatusBarController: NSObject {
     private func configureStatusItemIcon() {
         guard let button = statusItem?.button else { return }
         let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        if let symbol = NSImage(systemSymbolName: "bitcoinsign.circle", accessibilityDescription: "CryptoIsland")?.withSymbolConfiguration(config) {
+        if let symbol = NSImage(systemSymbolName: "bitcoinsign.circle", accessibilityDescription: "CryptoNotch")?.withSymbolConfiguration(config) {
             // SF Symbols carry a font baseline that causes NSStatusBarButton to offset the circle 0.5pt (1px) too high.
             // Drawing the symbol inside an exact canvas normalizes alignment to achieve a 1:1 pixel match with the Play icon.
             let icon = NSImage(size: symbol.size, flipped: false) { rect in
@@ -181,7 +181,7 @@ public final class StatusBarController: NSObject {
 
         // 6. Quit
         let quitItem = NSMenuItem(
-            title: "Quit CryptoIsland",
+            title: "Quit CryptoNotch",
             action: #selector(quitApp),
             keyEquivalent: ""
         )

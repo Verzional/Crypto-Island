@@ -30,7 +30,10 @@ public final class BinanceService: ObservableObject {
         restClient: BinanceRestClient = .shared,
         streamManager: BinanceStreamManager = BinanceStreamManager()
     ) {
-        let saved = UserDefaults.standard.string(forKey: "CryptoIsland_SelectedSymbol") ?? "BTCUSDT"
+        let saved = UserDefaults.standard.string(forKey: "CryptoNotch_SelectedSymbol")
+            ?? UserDefaults.standard.string(forKey: "CryptoAtoll_SelectedSymbol")
+            ?? UserDefaults.standard.string(forKey: "CryptoIsland_SelectedSymbol")
+            ?? "BTCUSDT"
         let symbol = initialSymbol ?? CryptoSymbol.from(rawInput: saved)
         self.currentSymbol = symbol
         self.lastValidSymbol = symbol
@@ -87,7 +90,7 @@ public final class BinanceService: ObservableObject {
     }
 
     private func saveSelectedSymbol() {
-        UserDefaults.standard.set(currentSymbol.symbol, forKey: "CryptoIsland_SelectedSymbol")
+        UserDefaults.standard.set(currentSymbol.symbol, forKey: "CryptoNotch_SelectedSymbol")
     }
 
     // MARK: - Initial REST Snapshot Hydration

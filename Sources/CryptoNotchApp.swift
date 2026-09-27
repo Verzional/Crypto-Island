@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 @main
-struct CryptoIslandApp: App {
+struct CryptoNotchApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
@@ -20,7 +20,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public var settings: SettingsModel?
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
-        // Run as an accessory app (floating island + menu bar item, without Dock clutter)
+        // Run as an accessory app (floating notch/island + menu bar item, without Dock clutter)
         NSApp.setActivationPolicy(.accessory)
 
         let settings = SettingsModel()
