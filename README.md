@@ -1,10 +1,10 @@
-# CryptoIsland
+# CryptoNotch
 
 [![macOS](https://img.shields.io/badge/macOS-14.0%2B-black.svg?style=flat-square&logo=apple)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg?style=flat-square&logo=swift)](https://swift.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
-CryptoIsland is a native macOS Dynamic Island utility that displays live cryptocurrency market intelligence directly from Binance. Designed to fit natively into the physical MacBook display notch, it also provides automatic fallback rendering for non-notch displays and external monitors.
+CryptoNotch is a native macOS Dynamic Island utility that displays live cryptocurrency market intelligence directly from Binance. Designed to fit natively into the physical MacBook display notch, it also provides automatic fallback rendering for non-notch displays and external monitors.
 
 The application operates as a floating accessory above full-screen windows and spaces without stealing keyboard focus or interrupting media playback.
 
@@ -13,22 +13,22 @@ The application operates as a floating accessory above full-screen windows and s
 ## Installation
 
 ### Download DMG
-Download the latest disk image from [GitHub Releases](https://github.com/Verzional/Crypto-Island/releases):
-1. Download `CryptoIsland.dmg`.
-2. Open the disk image and drag `CryptoIsland.app` to your `/Applications` folder.
-3. Launch CryptoIsland from Applications or Spotlight.
+Download the latest disk image from [GitHub Releases](https://github.com/Verzional/CryptoNotch/releases):
+1. Download `CryptoNotch.dmg`.
+2. Open the disk image and drag `CryptoNotch.app` to your `/Applications` folder.
+3. Launch CryptoNotch from Applications or Spotlight.
 
 ### Homebrew (Coming Soon)
 ```bash
-brew install --cask crypto-island
+brew install --cask crypto-notch
 ```
 
 ### Build from Source
 Requirements: macOS 14.0+, Xcode 15.0+ or Swift 5.9 toolchain.
 
 ```bash
-git clone https://github.com/Verzional/Crypto-Island.git
-cd Crypto-Island
+git clone https://github.com/Verzional/CryptoNotch.git
+cd CryptoNotch
 swift build -c release
 ```
 
