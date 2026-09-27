@@ -1,5 +1,5 @@
 import XCTest
-@testable import CryptoIsland
+@testable import CryptoNotch
 
 final class CryptoModelTests: XCTestCase {
     func testCryptoSymbolFromRawInput() {

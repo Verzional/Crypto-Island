@@ -2,27 +2,27 @@
 import PackageDescription
 
 let package = Package(
-    name: "CryptoIsland",
+    name: "CryptoNotch",
     platforms: [
         .macOS(.v13)
     ],
     products: [
         .executable(
-            name: "CryptoIsland",
-            targets: ["CryptoIsland"]
+            name: "CryptoNotch",
+            targets: ["CryptoNotch"]
         )
     ],
     dependencies: [],
     targets: [
         .executableTarget(
-            name: "CryptoIsland",
+            name: "CryptoNotch",
             dependencies: [],
             path: "Sources",
             exclude: ["AppIcon.icns"]
         ),
         .testTarget(
-            name: "CryptoIslandTests",
-            dependencies: ["CryptoIsland"],
+            name: "CryptoNotchTests",
+            dependencies: ["CryptoNotch"],
             path: "Tests"
         )
     ]
