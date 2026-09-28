@@ -230,6 +230,7 @@ public final class DynamicIslandController: NSObject, ObservableObject {
         self.binanceService = binanceService
         self.settings = settings
         self.panel = DynamicIslandPanel(contentRect: .zero)
+        self.isExpanded = settings.isPinned
 
         super.init()
 
