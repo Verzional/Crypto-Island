@@ -2,6 +2,7 @@
 
 [![macOS](https://img.shields.io/badge/macOS-14.0%2B-black.svg?style=flat-square&logo=apple)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg?style=flat-square&logo=swift)](https://swift.org)
+[![Homebrew](https://img.shields.io/badge/Homebrew-verzional%2Ftap-blue.svg?style=flat-square&logo=homebrew)](https://github.com/Verzional/Homebrew-Tap)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 CryptoNotch is a native macOS Dynamic Island utility that displays live cryptocurrency market intelligence directly from Binance. Designed to fit natively into the physical MacBook display notch, it also provides automatic fallback rendering for non-notch displays and external monitors.
@@ -18,9 +19,16 @@ Download the latest disk image from [GitHub Releases](https://github.com/Verzion
 2. Open the disk image and drag `CryptoNotch.app` to your `/Applications` folder.
 3. Launch CryptoNotch from Applications or Spotlight.
 
-### Homebrew (Coming Soon)
+### Homebrew
+Install directly via the official tap:
 ```bash
-brew install --cask crypto-notch
+brew install --cask verzional/tap/cryptonotch
+```
+
+Or add the tap first:
+```bash
+brew tap verzional/tap
+brew install --cask cryptonotch
 ```
 
 ### Build from Source
