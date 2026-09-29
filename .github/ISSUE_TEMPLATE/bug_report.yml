@@ -1,0 +1,60 @@
+name: Bug Report
+description: Report an issue or bug with CryptoNotch
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please provide as much detail as possible to help reproduce and fix it quickly.
+  - type: input
+    id: version
+    attributes:
+      label: CryptoNotch Version
+      description: What version of CryptoNotch are you running? (e.g. 1.0.1)
+      placeholder: e.g. 1.0.1 (build 2)
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS Version & Hardware
+      description: Which version of macOS and Mac model? (e.g. macOS 14.5 Sonoma on 14" M3 MacBook Pro)
+      placeholder: e.g. macOS Sonoma 14.5 on MacBook Pro (16-inch, M2 Pro)
+    validations:
+      required: true
+  - type: dropdown
+    id: display_type
+    attributes:
+      label: Display Setup
+      description: Where is CryptoNotch displayed?
+      options:
+        - Built-in MacBook Display (with physical camera notch)
+        - External Monitor (floating dynamic island)
+        - Both / Multi-monitor setup
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description of the Bug
+      description: A clear and concise description of what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Step-by-step instructions to reproduce the problem.
+      placeholder: |
+        1. Open CryptoNotch
+        2. Search for coin '...'
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: false
