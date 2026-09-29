@@ -1,0 +1,156 @@
+name: Release & Distribute
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, Notarize & Publish
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Set Release Version Variables
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building CryptoNotch version: ${VERSION}"
+
+      - name: Setup Code Signing Identity
+        if: env.CERTIFICATE_BASE64 != ''
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'actions-keychain-pass' }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          CERT_PATH=$RUNNER_TEMP/certificate.p12
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+          security import "$CERT_PATH" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+      - name: Build CryptoNotch (Release)
+        run: |
+          xcodebuild -scheme CryptoNotch \
+            -configuration Release \
+            -derivedDataPath build \
+            build
+
+      - name: Package & Codesign App
+        run: |
+          rm -rf CryptoNotch.app
+          cp -R build/Build/Products/Release/CryptoNotch.app ./
+
+          SIGN_ID=$(security find-identity -p codesigning -v | grep "Developer ID Application:" | head -n 1 | awk -F '"' '{print $2}')
+          if [ -n "$SIGN_ID" ]; then
+            echo "Signing with Developer ID: $SIGN_ID"
+            SPARKLE_DIR="CryptoNotch.app/Contents/Frameworks/Sparkle.framework/Versions/B"
+            if [ -d "$SPARKLE_DIR" ]; then
+              codesign -s "$SIGN_ID" --force --options runtime --timestamp "$SPARKLE_DIR/XPCServices/Downloader.xpc"
+              codesign -s "$SIGN_ID" --force --options runtime --timestamp "$SPARKLE_DIR/XPCServices/Installer.xpc"
+              codesign -s "$SIGN_ID" --force --options runtime --timestamp "$SPARKLE_DIR/Updater.app"
+              codesign -s "$SIGN_ID" --force --options runtime --timestamp "$SPARKLE_DIR/Autoupdate"
+              codesign -s "$SIGN_ID" --force --options runtime --timestamp "CryptoNotch.app/Contents/Frameworks/Sparkle.framework"
+            fi
+            codesign -s "$SIGN_ID" --force --options runtime --timestamp CryptoNotch.app
+          else
+            echo "No Developer ID certificate found; performing ad-hoc signature..."
+            codesign -s - --force --deep CryptoNotch.app
+          fi
+
+      - name: Package DMG Installer
+        run: |
+          DMG_ROOT="build/dmg_root"
+          rm -rf "$DMG_ROOT" CryptoNotch.dmg
+          mkdir -p "$DMG_ROOT"
+          cp -R CryptoNotch.app "$DMG_ROOT/"
+          ln -s /Applications "$DMG_ROOT/Applications"
+
+          hdiutil create -volname "CryptoNotch" -srcfolder "$DMG_ROOT" -ov -format UDZO CryptoNotch.dmg
+          rm -rf "$DMG_ROOT"
+
+          SIGN_ID=$(security find-identity -p codesigning -v | grep "Developer ID Application:" | head -n 1 | awk -F '"' '{print $2}')
+          if [ -n "$SIGN_ID" ]; then
+            codesign -s "$SIGN_ID" --force --timestamp CryptoNotch.dmg
+          fi
+
+      - name: Notarize DMG with Apple Notary Service
+        if: env.APPLE_API_KEY_BASE64 != ''
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          mkdir -p ~/.private_keys
+          echo "$APPLE_API_KEY_BASE64" | base64 --decode > ~/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8
+          
+          xcrun notarytool submit CryptoNotch.dmg \
+            --key "$HOME/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --wait
+
+          xcrun stapler staple CryptoNotch.dmg
+          spctl -a -t open --context context:primary-signature -v CryptoNotch.dmg
+
+      - name: Sign Sparkle Update
+        id: sparkle
+        run: |
+          DMG_SHA256=$(shasum -a 256 CryptoNotch.dmg | awk '{print $1}')
+          DMG_SIZE=$(stat -f%z CryptoNotch.dmg)
+          echo "DMG_SHA256=${DMG_SHA256}" >> "$GITHUB_OUTPUT"
+          echo "DMG_SIZE=${DMG_SIZE}" >> "$GITHUB_OUTPUT"
+
+          if [ -n "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
+            SIGN_UPDATE=$(find .build -name "sign_update" -type f -perm +111 | head -n 1)
+            if [ -n "$SIGN_UPDATE" ]; then
+              SIGNATURE=$(echo "${{ secrets.SPARKLE_PRIVATE_KEY }}" | "$SIGN_UPDATE" --ed-key-file - -p CryptoNotch.dmg)
+              echo "SPARKLE_SIGNATURE=${SIGNATURE}" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" CryptoNotch.dmg \
+            --title "v${{ steps.version.outputs.VERSION }} — Official Release" \
+            --generate-notes
+
+      - name: Update Homebrew Tap Cask
+        if: env.TAP_TOKEN != ''
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+          SHA256: ${{ steps.sparkle.outputs.DMG_SHA256 }}
+        run: |
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/Verzional/Homebrew-Tap.git" tap_repo
+          cd tap_repo
+          
+          sed -i '' "s/version \".*\"/version \"${VERSION}\"/" Casks/cryptonotch.rb
+          sed -i '' "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Casks/cryptonotch.rb
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/cryptonotch.rb
+          git commit -m "chore(cask): bump cryptonotch to ${VERSION}"
+          git push origin main
