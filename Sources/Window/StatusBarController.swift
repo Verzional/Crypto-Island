@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import ServiceManagement
+import Sparkle
 
 /// Manages the macOS menu bar status item companion.
 @MainActor
@@ -9,16 +10,19 @@ public final class StatusBarController: NSObject {
     private let islandController: DynamicIslandController
     private let binanceService: BinanceService
     private let settings: SettingsModel
+    private let updaterController: SPUStandardUpdaterController
     private var cancellables = Set<AnyCancellable>()
 
     public init(
         islandController: DynamicIslandController,
         binanceService: BinanceService,
-        settings: SettingsModel
+        settings: SettingsModel,
+        updaterController: SPUStandardUpdaterController? = nil
     ) {
         self.islandController = islandController
         self.binanceService = binanceService
         self.settings = settings
+        self.updaterController = updaterController ?? SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
         super.init()
 
         setupStatusItem()
@@ -177,9 +181,18 @@ public final class StatusBarController: NSObject {
         launchItem.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
         menu.addItem(launchItem)
 
+        // 6. Check for Updates
+        let updateItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        updateItem.target = updaterController
+        menu.addItem(updateItem)
+
         menu.addItem(NSMenuItem.separator())
 
-        // 6. Quit
+        // 7. Quit
         let quitItem = NSMenuItem(
             title: "Quit CryptoNotch",
             action: #selector(quitApp),
