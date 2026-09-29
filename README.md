@@ -5,6 +5,10 @@
 [![Homebrew](https://img.shields.io/badge/Homebrew-verzional%2Ftap-blue.svg?style=flat-square&logo=homebrew)](https://github.com/Verzional/Homebrew-Tap)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
+<p align="center">
+  <img src="assets/demo.gif" width="765" alt="CryptoNotch Live Demonstration">
+</p>
+
 CryptoNotch is a native macOS Dynamic Island utility that displays live cryptocurrency market intelligence directly from Binance. Designed to fit natively into the physical MacBook display notch, it also provides automatic fallback rendering for non-notch displays and external monitors.
 
 The application operates as a floating accessory above full-screen windows and spaces without stealing keyboard focus or interrupting media playback.
