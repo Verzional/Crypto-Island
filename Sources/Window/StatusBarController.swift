@@ -178,7 +178,11 @@ public final class StatusBarController: NSObject {
             keyEquivalent: ""
         )
         launchItem.target = self
-        launchItem.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
+        if #available(macOS 13.0, *) {
+            launchItem.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
+        } else {
+            launchItem.state = .off
+        }
         menu.addItem(launchItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -229,14 +233,16 @@ public final class StatusBarController: NSObject {
     }
 
     @objc private func toggleLaunchAtLogin() {
-        do {
-            if SMAppService.mainApp.status == .enabled {
-                try SMAppService.mainApp.unregister()
-            } else {
-                try SMAppService.mainApp.register()
+        if #available(macOS 13.0, *) {
+            do {
+                if SMAppService.mainApp.status == .enabled {
+                    try SMAppService.mainApp.unregister()
+                } else {
+                    try SMAppService.mainApp.register()
+                }
+            } catch {
+                print("Failed to toggle Launch at Login: \(error)")
             }
-        } catch {
-            print("Failed to toggle Launch at Login: \(error)")
         }
         rebuildMenu()
     }
