@@ -13,7 +13,17 @@ SIGN_ID=$(security find-identity -p codesigning -v | grep "Developer ID Applicat
 
 if [ -n "$SIGN_ID" ]; then
     echo "🔏 Signing with Developer ID: $SIGN_ID"
-    codesign -s "$SIGN_ID" --force --deep --options runtime --timestamp CryptoNotch.app
+    SPARKLE_DIR="CryptoNotch.app/Contents/Frameworks/Sparkle.framework/Versions/B"
+    if [ -d "$SPARKLE_DIR" ]; then
+        echo "   Signing Sparkle framework components..."
+        codesign -s "$SIGN_ID" --force --options runtime --timestamp "$SPARKLE_DIR/XPCServices/Downloader.xpc"
+        codesign -s "$SIGN_ID" --force --options runtime --timestamp "$SPARKLE_DIR/XPCServices/Installer.xpc"
+        codesign -s "$SIGN_ID" --force --options runtime --timestamp "$SPARKLE_DIR/Updater.app"
+        codesign -s "$SIGN_ID" --force --options runtime --timestamp "$SPARKLE_DIR/Autoupdate"
+        codesign -s "$SIGN_ID" --force --options runtime --timestamp "CryptoNotch.app/Contents/Frameworks/Sparkle.framework"
+    fi
+    echo "   Signing CryptoNotch.app..."
+    codesign -s "$SIGN_ID" --force --options runtime --timestamp CryptoNotch.app
 else
     echo "⚠️  Developer ID not found. Signing ad-hoc..."
     codesign -s - --force --deep CryptoNotch.app
