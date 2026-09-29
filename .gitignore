@@ -10,3 +10,4 @@ build/
 *.app
 *.dmg
 reload.sh
+ROADMAP_INTERNAL.md
