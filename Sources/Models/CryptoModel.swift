@@ -240,31 +240,7 @@ public struct TickerData: Equatable {
 
     private func formatPriceValue(_ value: Double) -> String {
         guard value > 0 else { return "$0.00" }
-        let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = true
-
-        if value >= 1000 {
-            formatter.minimumFractionDigits = 2
-            formatter.maximumFractionDigits = 2
-        } else if value >= 1 {
-            formatter.minimumFractionDigits = 2
-            formatter.maximumFractionDigits = 4
-        } else if value >= 0.01 {
-            formatter.minimumFractionDigits = 2
-            formatter.maximumFractionDigits = 6
-        } else {
-            // For sub-cent & micro-cap tokens (e.g. PEPE, SHIB) supporting up to 8 decimals
-            formatter.minimumFractionDigits = 2
-            formatter.maximumFractionDigits = 8
-        }
-
-        if let str = formatter.string(from: NSNumber(value: value)) {
-            return "$" + str
-        } else {
-            return String(format: "$%.8f", value)
-        }
+        return PriceFormatterCache.shared.format(value)
     }
 
     public var formattedBaseVolume: String {
@@ -477,5 +453,54 @@ public enum StatMetric: String, CaseIterable, Identifiable, Codable {
             .high24h, .quoteVolume15m, .vwap,
             .low24h, .quoteVolume5m, .takerBuyRatio5m
         ]
+    }
+}
+
+// MARK: - Price Formatter Cache
+private final class PriceFormatterCache: @unchecked Sendable {
+    static let shared = PriceFormatterCache()
+    private let lock = NSLock()
+
+    private let largeFormatter: NumberFormatter
+    private let mediumFormatter: NumberFormatter
+    private let smallFormatter: NumberFormatter
+    private let microFormatter: NumberFormatter
+
+    private init() {
+        func makeFormatter(minFrac: Int, maxFrac: Int) -> NumberFormatter {
+            let f = NumberFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.numberStyle = .decimal
+            f.usesGroupingSeparator = true
+            f.minimumFractionDigits = minFrac
+            f.maximumFractionDigits = maxFrac
+            return f
+        }
+        self.largeFormatter = makeFormatter(minFrac: 2, maxFrac: 2)
+        self.mediumFormatter = makeFormatter(minFrac: 2, maxFrac: 4)
+        self.smallFormatter = makeFormatter(minFrac: 2, maxFrac: 6)
+        self.microFormatter = makeFormatter(minFrac: 2, maxFrac: 8)
+    }
+
+    func format(_ value: Double) -> String {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let formatter: NumberFormatter
+        if value >= 1000 {
+            formatter = largeFormatter
+        } else if value >= 1 {
+            formatter = mediumFormatter
+        } else if value >= 0.01 {
+            formatter = smallFormatter
+        } else {
+            formatter = microFormatter
+        }
+
+        if let str = formatter.string(from: NSNumber(value: value)) {
+            return "$" + str
+        } else {
+            return String(format: "$%.8f", value)
+        }
     }
 }
