@@ -7,6 +7,20 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Most recent updates to CryptoNotch</description>
         <language>en</language>
         <item>
+            <title>CryptoNotch 1.1.1</title>
+            <pubDate>Tue, 29 Sep 2026 16:03:00 +0700</pubDate>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>1.1.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h2>CryptoNotch 1.1.1</h2>
+<ul>
+  <li><strong>Refined Menu Bar Layout:</strong> Reorganized companion status menu to group app management actions ("Check for Updates..." and "Quit") at the bottom below feature controls, matching macOS HIG standards.</li>
+</ul>
+            ]]></description>
+            <enclosure url="https://github.com/Verzional/CryptoNotch/releases/download/v1.1.1/CryptoNotch.dmg" sparkle:edSignature="T4ap1gPa90ukhoTjBMRJoC+evcjTKsKWp+iSAmIR2xMjDBkgwuAbilxT1VJTsVMsum8x4GELoSpdSlbnHix6Dw==" length="6893044" type="application/octet-stream"></enclosure>
+        </item>
+        <item>
             <title>CryptoNotch 1.1.0</title>
             <pubDate>Tue, 29 Sep 2026 15:55:00 +0700</pubDate>
             <sparkle:version>3</sparkle:version>
@@ -40,6 +54,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: t6jt+S1MXo1P0EQ3dznKIsp9z+X78r1JuptIQQ42l10hSCnmt7Iro0jellxTsx6DEdGhwlZ7XNLBAIkvxc3uAQ==
-length: 2919
+edSignature: y0D7/AfM0hdBNYVMgyZ9COi5QtcrsvRVR4pkUnUld5Uo5zO1i1VaDILg57hW/r1nrxzVMAkY+3HgGWNp5lAFAQ==
+length: 3870
 -->
