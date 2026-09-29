@@ -181,6 +181,8 @@ public final class StatusBarController: NSObject {
         launchItem.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
         menu.addItem(launchItem)
 
+        menu.addItem(NSMenuItem.separator())
+
         // 6. Check for Updates
         let updateItem = NSMenuItem(
             title: "Check for Updates...",
@@ -189,8 +191,6 @@ public final class StatusBarController: NSObject {
         )
         updateItem.target = updaterController
         menu.addItem(updateItem)
-
-        menu.addItem(NSMenuItem.separator())
 
         // 7. Quit
         let quitItem = NSMenuItem(
