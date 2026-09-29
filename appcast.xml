@@ -7,6 +7,22 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Most recent updates to CryptoNotch</description>
         <language>en</language>
         <item>
+            <title>CryptoNotch 1.1.0</title>
+            <pubDate>Tue, 29 Sep 2026 15:55:00 +0700</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h2>CryptoNotch 1.1.0</h2>
+<ul>
+  <li><strong>Reorderable Favorites:</strong> Organize pinned favorite coins via smooth drag-and-drop in the switch pair popover.</li>
+  <li><strong>Streaming Performance:</strong> Cached number formatters eliminating heap churn on high-frequency ticker updates.</li>
+  <li><strong>Optimized Network Pipeline:</strong> Deduplicated WebSocket events and ephemeral REST snapshots.</li>
+</ul>
+            ]]></description>
+            <enclosure url="https://github.com/Verzional/CryptoNotch/releases/download/v1.1.0/CryptoNotch.dmg" sparkle:edSignature="bd0X0z+z8ITE5JcSC/9rxl9EVK1clbmGnPga6gGOSW5aO4JAu5pextZjs/2bGVH4sYnxnn8HCkrv/uVZNXnuDQ==" length="6892991" type="application/octet-stream"></enclosure>
+        </item>
+        <item>
             <title>CryptoNotch 1.0.1</title>
             <pubDate>Mon, 29 Sep 2026 12:00:00 +0700</pubDate>
             <sparkle:version>2</sparkle:version>
@@ -24,6 +40,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: EQqpYMTRYZdgZnBSAlo72JGUEaE/gDN+x/cve2wBIC35zCXDJYU5zUf01yZIUw+fSy0SC8Pl4wmstg2kmIf5CQ==
-length: 1807
+edSignature: t6jt+S1MXo1P0EQ3dznKIsp9z+X78r1JuptIQQ42l10hSCnmt7Iro0jellxTsx6DEdGhwlZ7XNLBAIkvxc3uAQ==
+length: 2919
 -->
