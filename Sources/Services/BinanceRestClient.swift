@@ -17,9 +17,10 @@ public final class BinanceRestClient {
         if let session = session {
             self.session = session
         } else {
-            let config = URLSessionConfiguration.default
+            let config = URLSessionConfiguration.ephemeral
             config.waitsForConnectivity = true
             config.timeoutIntervalForRequest = 10
+            config.requestCachePolicy = .reloadIgnoringLocalCacheData
             self.session = URLSession(configuration: config)
         }
     }

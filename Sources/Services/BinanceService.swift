@@ -175,8 +175,9 @@ public final class BinanceService: ObservableObject {
             symbol: currentSymbol.symbol,
             onConnected: { [weak self] in
                 Task { @MainActor [weak self] in
-                    self?.isConnected = true
-                    self?.errorMessage = nil
+                    guard let self = self, !self.isConnected else { return }
+                    self.isConnected = true
+                    self.errorMessage = nil
                 }
             },
             onMessage: { [weak self] payloadText in

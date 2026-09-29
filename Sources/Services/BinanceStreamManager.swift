@@ -5,6 +5,7 @@ public final class BinanceStreamManager {
     private let primaryWsBase = "wss://data-stream.binance.vision:9443"
     private var webSocketTask: URLSessionWebSocketTask?
     private var session: URLSession
+    private var hasReportedConnected: Bool = false
 
     public init(session: URLSession? = nil) {
         if let session = session {
@@ -23,6 +24,7 @@ public final class BinanceStreamManager {
         onError: @escaping (Error) -> Void
     ) {
         disconnect()
+        hasReportedConnected = false
 
         let symbolLower = symbol.lowercased()
         let streamPath = "\(primaryWsBase)/stream?streams=\(symbolLower)@ticker/\(symbolLower)@ticker_1h/\(symbolLower)@ticker_4h/\(symbolLower)@kline_5m/\(symbolLower)@kline_15m/\(symbolLower)@depth20@1000ms"
@@ -36,6 +38,7 @@ public final class BinanceStreamManager {
     }
 
     public func disconnect() {
+        hasReportedConnected = false
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
     }
@@ -51,7 +54,10 @@ public final class BinanceStreamManager {
 
             switch result {
             case .success(let message):
-                onConnected()
+                if !self.hasReportedConnected {
+                    self.hasReportedConnected = true
+                    onConnected()
+                }
                 switch message {
                 case .string(let text):
                     onMessage(text)
