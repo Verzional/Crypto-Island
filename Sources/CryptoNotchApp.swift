@@ -12,6 +12,7 @@ struct CryptoNotchApp: App {
     }
 }
 
+@MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
     public var islandController: DynamicIslandController?
     public var statusBarController: StatusBarController?
