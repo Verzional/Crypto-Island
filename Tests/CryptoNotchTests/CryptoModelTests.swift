@@ -103,6 +103,27 @@ final class CryptoModelTests: XCTestCase {
         XCTAssertFalse(settings.isFavorite("COIN10USDT"))
     }
 
+    @MainActor
+    func testSettingsFavoritesReordering() {
+        let settings = SettingsModel()
+        settings.favorites = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+
+        // Move SOL (index 2) to first position (index 0)
+        settings.moveFavorite(from: 2, to: 0)
+        XCTAssertEqual(settings.favorites, ["SOLUSDT", "BTCUSDT", "ETHUSDT"])
+
+        // Move SOL (index 0) to middle (index 1)
+        settings.moveFavorite(from: 0, to: 1)
+        XCTAssertEqual(settings.favorites, ["BTCUSDT", "SOLUSDT", "ETHUSDT"])
+
+        // Out-of-bounds guards should be no-ops
+        settings.moveFavorite(from: -1, to: 0)
+        XCTAssertEqual(settings.favorites, ["BTCUSDT", "SOLUSDT", "ETHUSDT"])
+
+        settings.moveFavorite(from: 0, to: 99)
+        XCTAssertEqual(settings.favorites, ["BTCUSDT", "SOLUSDT", "ETHUSDT"])
+    }
+
     func testCryptoSymbolPresetsCount() {
         XCTAssertEqual(CryptoSymbol.presets.count, 9)
         XCTAssertTrue(CryptoSymbol.presets.contains(where: { $0.baseAsset == "BTC" }))

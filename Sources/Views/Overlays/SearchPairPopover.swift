@@ -7,6 +7,10 @@ public struct SearchPairPopover: View {
     @Binding var isPresented: Bool
 
     @State private var customSymbolText: String = ""
+    @State private var draggedSymbol: String? = nil
+    @State private var dragLocation: CGPoint = .zero
+    @State private var dragOffset: CGSize = .zero
+    @State private var pillFrames: [String: CGRect] = [:]
     @FocusState private var isSearchFocused: Bool
 
     public init(
@@ -69,13 +73,19 @@ public struct SearchPairPopover: View {
                     .transition(.opacity)
             }
 
-            // Favorites Grid (Dynamic user favorites, max 9)
+            // Favorites Grid (Dynamic user favorites, max 9, interactive drag-and-drop reordering)
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
+                HStack(spacing: 4) {
                     Text("FAVORITES")
                         .font(.system(size: 9, weight: .bold, design: .rounded))
                         .foregroundColor(.gray)
                         .tracking(0.5)
+
+                    if settings.favorites.count > 1 {
+                        Text("• Drag to reorder")
+                            .font(.system(size: 8, weight: .medium, design: .rounded))
+                            .foregroundColor(.gray.opacity(0.5))
+                    }
 
                     Spacer()
 
@@ -119,36 +129,96 @@ public struct SearchPairPopover: View {
                     )
                 } else {
                     let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 3)
-                    LazyVGrid(columns: columns, spacing: 6) {
-                        ForEach(settings.favorites, id: \.self) { favString in
-                            let preset = CryptoSymbol.from(rawInput: favString)
-                            let isCurrent = preset.symbol == binanceService.currentSymbol.symbol
-                            Button {
-                                binanceService.selectSymbol(preset)
-                                customSymbolText = ""
-                                isPresented = false
-                            } label: {
-                                Text(preset.baseAsset)
-                                    .font(.system(size: 11, weight: isCurrent ? .bold : .medium, design: .rounded))
-                                    .foregroundColor(isCurrent ? .white : .white.opacity(0.85))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 5)
-                                    .background(
-                                        isCurrent
-                                            ? Color.white.opacity(0.20)
-                                            : Color.white.opacity(0.07)
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .stroke(
-                                                isCurrent ? Color.white.opacity(0.35) : Color.white.opacity(0.1),
-                                                lineWidth: 0.8
-                                            )
-                                    )
+                    ZStack {
+                        LazyVGrid(columns: columns, spacing: 6) {
+                            ForEach(settings.favorites, id: \.self) { favString in
+                                let preset = CryptoSymbol.from(rawInput: favString)
+                                let isCurrent = preset.symbol == binanceService.currentSymbol.symbol
+                                let isBeingDragged = draggedSymbol == favString
+
+                                FavoritePillView(
+                                    symbol: preset,
+                                    isCurrent: isCurrent
+                                )
+                                .opacity(isBeingDragged ? 0.22 : 1.0)
+                                .background(
+                                    GeometryReader { geo in
+                                        Color.clear.preference(
+                                            key: PillFramePreference.self,
+                                            value: [favString: geo.frame(in: .named("FavoritesGrid"))]
+                                        )
+                                    }
+                                )
+                                .contentShape(Rectangle())
+                                .gesture(
+                                    DragGesture(minimumDistance: 0, coordinateSpace: .named("FavoritesGrid"))
+                                        .onChanged { value in
+                                            let dist = hypot(value.translation.width, value.translation.height)
+                                            if dist > 3 {
+                                                if draggedSymbol == nil {
+                                                    draggedSymbol = favString
+                                                    let startFrame = pillFrames[favString] ?? .zero
+                                                    if startFrame != .zero {
+                                                        dragOffset = CGSize(
+                                                            width: value.startLocation.x - startFrame.midX,
+                                                            height: value.startLocation.y - startFrame.midY
+                                                        )
+                                                    } else {
+                                                        dragOffset = .zero
+                                                    }
+                                                    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+                                                }
+                                                dragLocation = value.location
+
+                                                // Find if hovering over another pill's slot
+                                                if let target = pillFrames.first(where: { $0.key != favString && $0.value.contains(value.location) })?.key,
+                                                   let from = settings.favorites.firstIndex(of: favString),
+                                                   let to = settings.favorites.firstIndex(of: target),
+                                                   from != to {
+                                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.78)) {
+                                                        settings.moveFavorite(from: from, to: to)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        .onEnded { value in
+                                            let dist = hypot(value.translation.width, value.translation.height)
+                                            if dist < 4 {
+                                                // Quick tap without drag -> select symbol immediately
+                                                binanceService.selectSymbol(preset)
+                                                customSymbolText = ""
+                                                isPresented = false
+                                            }
+                                            withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
+                                                draggedSymbol = nil
+                                            }
+                                        }
+                                )
                             }
-                            .buttonStyle(.plain)
                         }
+
+                        // Floating dragged pill follower
+                        if let dragged = draggedSymbol {
+                            let preset = CryptoSymbol.from(rawInput: dragged)
+                            let size = pillFrames[dragged]?.size ?? CGSize(width: 71, height: 26)
+                            FavoritePillView(
+                                symbol: preset,
+                                isCurrent: preset.symbol == binanceService.currentSymbol.symbol
+                            )
+                            .frame(width: size.width, height: size.height)
+                            .scaleEffect(1.08)
+                            .shadow(color: Color.black.opacity(0.55), radius: 8, x: 0, y: 4)
+                            .position(
+                                x: dragLocation.x - dragOffset.width,
+                                y: dragLocation.y - dragOffset.height
+                            )
+                            .allowsHitTesting(false)
+                            .transition(.identity)
+                        }
+                    }
+                    .coordinateSpace(name: "FavoritesGrid")
+                    .onPreferenceChange(PillFramePreference.self) { frames in
+                        self.pillFrames = frames
                     }
                 }
             }
@@ -168,5 +238,49 @@ public struct SearchPairPopover: View {
         binanceService.selectSymbol(sym)
         customSymbolText = ""
         isPresented = false
+    }
+}
+
+// MARK: - PreferenceKey for tracking pill frame geometry
+private struct PillFramePreference: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
+    }
+}
+
+// MARK: - Favorite Pill View
+private struct FavoritePillView: View {
+    let symbol: CryptoSymbol
+    let isCurrent: Bool
+
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        Text(symbol.baseAsset)
+            .font(.system(size: 11, weight: isCurrent ? .bold : .medium, design: .rounded))
+            .foregroundColor(isCurrent ? .white : .white.opacity(isHovered ? 1.0 : 0.85))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 5)
+            .background(
+                isCurrent
+                    ? Color.white.opacity(isHovered ? 0.26 : 0.20)
+                    : Color.white.opacity(isHovered ? 0.12 : 0.07)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(
+                        isCurrent
+                            ? Color.white.opacity(0.35)
+                            : (isHovered ? Color.white.opacity(0.24) : Color.white.opacity(0.1)),
+                        lineWidth: 0.8
+                    )
+            )
+            .animation(.easeInOut(duration: 0.12), value: isHovered)
+            .onHover { hovering in
+                isHovered = hovering
+            }
+            .help("Drag to reorder • Click to switch")
     }
 }

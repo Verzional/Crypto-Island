@@ -112,4 +112,12 @@ public final class SettingsModel: ObservableObject {
             return true
         }
     }
+
+    public func moveFavorite(from sourceIndex: Int, to destinationIndex: Int) {
+        guard sourceIndex >= 0, sourceIndex < favorites.count,
+              destinationIndex >= 0, destinationIndex < favorites.count,
+              sourceIndex != destinationIndex else { return }
+        let item = favorites.remove(at: sourceIndex)
+        favorites.insert(item, at: destinationIndex)
+    }
 }
