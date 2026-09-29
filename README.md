@@ -1,7 +1,9 @@
 # CryptoNotch
 
-[![macOS](https://img.shields.io/badge/macOS-14.0%2B-black.svg?style=flat-square&logo=apple)](https://www.apple.com/macos/)
-[![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg?style=flat-square&logo=swift)](https://swift.org)
+[![Release](https://img.shields.io/github/v/release/Verzional/CryptoNotch?style=flat-square&color=34C759&label=Release)](https://github.com/Verzional/CryptoNotch/releases/latest)
+[![macOS](https://img.shields.io/badge/macOS-13.0%2B-black.svg?style=flat-square&logo=apple)](https://www.apple.com/macos/)
+[![Security](https://img.shields.io/badge/Apple-Notarized-success.svg?style=flat-square&logo=apple)](https://github.com/Verzional/CryptoNotch/releases)
+[![Updates](https://img.shields.io/badge/Sparkle%202-Auto--Update-blueviolet.svg?style=flat-square)](https://sparkle-project.org)
 [![Homebrew](https://img.shields.io/badge/Homebrew-verzional%2Ftap-blue.svg?style=flat-square&logo=homebrew)](https://github.com/Verzional/Homebrew-Tap)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
