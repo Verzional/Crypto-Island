@@ -21,7 +21,15 @@ jobs:
           fetch-depth: 0
 
       - name: Select Xcode Version
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+        run: |
+          XCODE_PATH=$(find /Applications -maxdepth 1 -name "Xcode_16*.app" -o -name "Xcode_15*.app" | sort -V -r | head -n 1)
+          if [ -n "$XCODE_PATH" ]; then
+            echo "Selecting $XCODE_PATH"
+            sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          else
+            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          fi
+          xcodebuild -version
 
       - name: Set Release Version Variables
         id: version
@@ -121,7 +129,7 @@ jobs:
           echo "DMG_SIZE=${DMG_SIZE}" >> "$GITHUB_OUTPUT"
 
           if [ -n "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
-            SIGN_UPDATE=$(find .build -name "sign_update" -type f -perm +111 | head -n 1)
+            SIGN_UPDATE=$(find . -name "sign_update" -type f -perm +111 2>/dev/null | head -n 1)
             if [ -n "$SIGN_UPDATE" ]; then
               SIGNATURE=$(echo "${{ secrets.SPARKLE_PRIVATE_KEY }}" | "$SIGN_UPDATE" --ed-key-file - -p CryptoNotch.dmg)
               echo "SPARKLE_SIGNATURE=${SIGNATURE}" >> "$GITHUB_OUTPUT"
@@ -132,9 +140,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" CryptoNotch.dmg \
-            --title "v${{ steps.version.outputs.VERSION }} — Official Release" \
-            --generate-notes
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists. Uploading/clobbering asset..."
+            gh release upload "${GITHUB_REF_NAME}" CryptoNotch.dmg --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" CryptoNotch.dmg \
+              --title "v${{ steps.version.outputs.VERSION }} — Official Release" \
+              --generate-notes
+          fi
 
       - name: Update Homebrew Tap Cask
         if: env.TAP_TOKEN != ''
