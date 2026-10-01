@@ -146,8 +146,9 @@ public final class StatusBarController: NSObject {
         let toggleItem = NSMenuItem(
             title: islandController.isExpanded ? "Collapse Island" : "Expand Island",
             action: #selector(toggleIsland),
-            keyEquivalent: ""
+            keyEquivalent: "c"
         )
+        toggleItem.keyEquivalentModifierMask = [.option, .shift]
         toggleItem.target = self
         menu.addItem(toggleItem)
 
