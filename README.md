@@ -111,7 +111,7 @@ Active metrics in your grid are automatically hidden from the selection list to 
 - **Launch at Login:** Native support via macOS `SMAppService`.
 - **Pin Mode:** Keeps the Dynamic Island permanently expanded for dedicated monitoring.
 - **Stealth Mode:** Hides the collapsed notch indicator completely until the cursor hovers over the camera notch.
-- **Global Hotkey:** Press `Control + Option + C` anywhere to toggle the island state.
+- **Global Hotkey:** Press `Option + Shift + C` (`⌥⇧C`) anywhere to toggle the island state.
 
 ---
 
@@ -119,7 +119,7 @@ Active metrics in your grid are automatically hidden from the selection list to 
 
 | Action | Trigger |
 | :--- | :--- |
-| **Expand / Collapse Island** | Hover cursor over notch, click collapsed island, or press `Control + Option + C` |
+| **Expand / Collapse Island** | Hover cursor over notch, click collapsed island, or press `Option + Shift + C` (`⌥⇧C`) |
 | **Search Pairs** | Click magnifying glass icon in expanded header |
 | **Customize Grid** | Click pencil icon in expanded header |
 | **Favorite / Unfavorite** | Click star icon beside symbol name |
