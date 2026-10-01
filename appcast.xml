@@ -7,6 +7,22 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Most recent updates to CryptoNotch</description>
         <language>en</language>
         <item>
+            <title>CryptoNotch 1.1.2</title>
+            <pubDate>Thu, 01 Oct 2026 15:20:00 +0700</pubDate>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>1.1.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h2>CryptoNotch 1.1.2</h2>
+<ul>
+  <li><strong>Permissionless Global Hotkey:</strong> Replaced legacy event monitoring with native Carbon hotkey registration, enabling instant system-wide toggling without requiring macOS Accessibility permissions.</li>
+  <li><strong>Updated Default Shortcut:</strong> Changed shortcut to <code>Option + Shift + C</code> (<code>⌥⇧C</code>) for effortless one-handed ergonomics and conflict-free operation with window managers.</li>
+  <li><strong>Status Menu Badge:</strong> Added visual <code>⌥⇧C</code> badge to the companion status menu.</li>
+</ul>
+            ]]></description>
+            <enclosure url="https://github.com/Verzional/CryptoNotch/releases/download/v1.1.2/CryptoNotch.dmg" sparkle:edSignature="pi0ot1DdqHW3bjnpvcdgvOVCxwAOSaAqe2vCxqojyp9ggDvpGawgmzt37AlzkJln/82oSvT5gn1BIBuF+nobCg==" length="6889770" type="application/octet-stream"></enclosure>
+        </item>
+        <item>
             <title>CryptoNotch 1.1.1</title>
             <pubDate>Tue, 29 Sep 2026 16:03:00 +0700</pubDate>
             <sparkle:version>4</sparkle:version>
@@ -54,6 +70,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: y0D7/AfM0hdBNYVMgyZ9COi5QtcrsvRVR4pkUnUld5Uo5zO1i1VaDILg57hW/r1nrxzVMAkY+3HgGWNp5lAFAQ==
-length: 3870
+edSignature: /089d8j6td94yknG9Z0KOjcLp7lm6I69blwct/hWQ0SN3lzMlUoKMLd2L7Z3sMXOU96+RB7cCKf3bRpSHyZQAQ==
+length: 5151
 -->
