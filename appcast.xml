@@ -7,6 +7,21 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Most recent updates to CryptoNotch</description>
         <language>en</language>
         <item>
+            <title>CryptoNotch 1.3.2</title>
+            <pubDate>Sat, 03 Oct 2026 06:34:05 +0700</pubDate>
+            <sparkle:version>9</sparkle:version>
+            <sparkle:shortVersionString>1.3.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h2>CryptoNotch 1.3.2</h2>
+<ul>
+  <li>Refined App Icon: Removed notch tether line and perfected the golden sun coin silhouette rising over the island</li>
+  <li>Optimized Asset Footprint: Rebuilt multi-resolution AppIcon.icns, cutting app bundle size from 9.9 MB down to 6.3 MB (-36%)</li>
+</ul>
+            ]]></description>
+            <enclosure url="https://github.com/Verzional/CryptoNotch/releases/download/v1.3.2/CryptoNotch.dmg" sparkle:edSignature="i2E7mIw17lqSLF4v1Ej8n8J7n4y4Nu67vcWEneXAbLLK3i9rj7qZmq338OmRA1U4oShdzGi4LoHl+RmHkUBZDw==" length="3631145" type="application/octet-stream"></enclosure>
+        </item>
+        <item>
             <title>CryptoNotch 1.3.1</title>
             <pubDate>Fri, 02 Oct 2026 19:01:29 +0700</pubDate>
             <sparkle:version>8</sparkle:version>
@@ -121,6 +136,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: FbOoqxNdgMpYoLich0vu4OQvdW/N8Nit4RHXfsJs67EZ8Gz69hsbkHe0Nc285INmbQwaGenXatmxVAbQInA3AA==
-length: 9397
+edSignature: n5ywdZaoLDF3LKZU/aGq+QUZgtAFiGhBUdFeItvr7DaHGiO/U0bT09JpEoEpErSWQRrKDq+E+gYhWtfpD8hnBA==
+length: 10383
 -->
