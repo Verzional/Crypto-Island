@@ -289,4 +289,86 @@ final class CryptoModelTests: XCTestCase {
         XCTAssertEqual(ticker.formattedAskDepth20, "2.100M")
         XCTAssertEqual(ticker.formattedBookImbalance, "60% Bids")
     }
+
+    @MainActor
+    func testCyclingSymbolsFavoritesFallback() {
+        let settings = SettingsModel()
+        let binanceService = BinanceService(initialSymbol: CryptoSymbol.presets[0])
+        let controller = DynamicIslandController(binanceService: binanceService, settings: settings)
+
+        // Case 1: Empty favorites -> should fallback to presets
+        settings.favorites = []
+        XCTAssertEqual(controller.cyclingSymbols().map(\.symbol), CryptoSymbol.presets.map(\.symbol))
+
+        // Case 2: Only 1 favorite -> should still fallback to presets so cycling is possible
+        settings.favorites = ["SOLUSDT"]
+        XCTAssertEqual(controller.cyclingSymbols().map(\.symbol), CryptoSymbol.presets.map(\.symbol))
+
+        // Case 3: 2 or more favorites -> should use curated favorites
+        settings.favorites = ["SOLUSDT", "ETHUSDT", "DOGEUSDT"]
+        let symbols = controller.cyclingSymbols().map(\.symbol)
+        XCTAssertEqual(symbols, ["SOLUSDT", "ETHUSDT", "DOGEUSDT"])
+    }
+
+    @MainActor
+    func testCycleFavoriteDirectionNextAndPrevious() {
+        let settings = SettingsModel()
+        settings.favorites = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+        let binanceService = BinanceService(initialSymbol: CryptoSymbol.presets[0]) // BTCUSDT
+        let controller = DynamicIslandController(binanceService: binanceService, settings: settings)
+
+        // Start at BTC
+        XCTAssertEqual(binanceService.currentSymbol.symbol, "BTCUSDT")
+
+        // Cycle next -> ETH
+        controller.cycleFavorite(direction: .next)
+        XCTAssertEqual(binanceService.currentSymbol.symbol, "ETHUSDT")
+        XCTAssertEqual(controller.cycleDirection, .next)
+
+        // Cycle next -> SOL
+        controller.cycleFavorite(direction: .next)
+        XCTAssertEqual(binanceService.currentSymbol.symbol, "SOLUSDT")
+        XCTAssertEqual(controller.cycleDirection, .next)
+
+        // Cycle next -> wrap around to BTC
+        controller.cycleFavorite(direction: .next)
+        XCTAssertEqual(binanceService.currentSymbol.symbol, "BTCUSDT")
+        XCTAssertEqual(controller.cycleDirection, .next)
+
+        // Cycle previous -> wrap around backwards to SOL
+        controller.cycleFavorite(direction: .previous)
+        XCTAssertEqual(binanceService.currentSymbol.symbol, "SOLUSDT")
+        XCTAssertEqual(controller.cycleDirection, .previous)
+
+        // Cycle previous -> ETH
+        controller.cycleFavorite(direction: .previous)
+        XCTAssertEqual(binanceService.currentSymbol.symbol, "ETHUSDT")
+        XCTAssertEqual(controller.cycleDirection, .previous)
+    }
+
+    @MainActor
+    func testJumpToFavoriteIndex() {
+        let settings = SettingsModel()
+        settings.favorites = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT"]
+        let binanceService = BinanceService(initialSymbol: CryptoSymbol.presets[0]) // BTCUSDT (index 0)
+        let controller = DynamicIslandController(binanceService: binanceService, settings: settings)
+
+        // Jump forward to index 2 (SOL)
+        controller.jumpToFavorite(index: 2)
+        XCTAssertEqual(binanceService.currentSymbol.symbol, "SOLUSDT")
+        XCTAssertEqual(controller.cycleDirection, .next)
+
+        // Jump backwards to index 1 (ETH)
+        controller.jumpToFavorite(index: 1)
+        XCTAssertEqual(binanceService.currentSymbol.symbol, "ETHUSDT")
+        XCTAssertEqual(controller.cycleDirection, .previous)
+
+        // Jump to same index -> no-op
+        controller.jumpToFavorite(index: 1)
+        XCTAssertEqual(binanceService.currentSymbol.symbol, "ETHUSDT")
+
+        // Jump to out of bounds -> no-op
+        controller.jumpToFavorite(index: 99)
+        XCTAssertEqual(binanceService.currentSymbol.symbol, "ETHUSDT")
+    }
 }
