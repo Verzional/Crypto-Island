@@ -1,6 +1,6 @@
 #!/bin/zsh
 set -e
-DIR="$(cd "$(dirname "$0")" && pwd)"
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$DIR"
 
 echo "🔨 Building CryptoNotch (Release)..."

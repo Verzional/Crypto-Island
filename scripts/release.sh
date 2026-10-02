@@ -205,7 +205,7 @@ if [ "$DRY_RUN" = true ]; then
     log_step "Would update Info.plist: CFBundleShortVersionString -> ${TARGET_VERSION}, CFBundleVersion -> ${NEW_BUILD}"
     log_step "Would update project.pbxproj: MARKETING_VERSION -> ${TARGET_VERSION}, CURRENT_PROJECT_VERSION -> ${NEW_BUILD}"
     if [ "$SKIP_BUILD" = false ]; then
-        log_step "Would execute ./package.sh to compile Release binary, codesign Sparkle & App, and package DMG"
+        log_step "Would execute ./scripts/package.sh to compile Release binary, codesign Sparkle & App, and package DMG"
     fi
     log_step "Would sign CryptoNotch.dmg using: ${SIGN_UPDATE}"
     log_step "Would inject release item into appcast.xml with date '${PUB_DATE}'"
@@ -241,7 +241,7 @@ if [ "$SKIP_BUILD" = true ] && [ -f "CryptoNotch.dmg" ]; then
     log_warn "Skipping build (--skip-build flag passed; using existing CryptoNotch.dmg)."
 else
     log_info "4. Building and packaging CryptoNotch.dmg..."
-    ./package.sh
+    ./scripts/package.sh
     log_succ "CryptoNotch.dmg successfully built and signed."
 fi
 
