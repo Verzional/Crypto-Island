@@ -104,6 +104,8 @@ Active metrics in your grid are automatically hidden from the selection list to 
 ### Search, Favorites, and Pair Management
 - **Search Popover:** Keyboard-first search interface with auto-focus. Type any ticker (e.g., `ETH`, `SOL`, `BTC`) and press `Return` to switch pairs. Omitting the quote asset automatically defaults to `USDT`.
 - **Favorites Shelf:** Pin up to 9 favorite coins using the star button in the header. Quick-switch chips allow one-click toggling between active watches.
+- **Fluid Coin Cycling:** Swipe horizontally across the notch with two fingers on your trackpad to cycle through favorite pairs. Discrete per-gesture latching guarantees one swipe switches exactly one coin without momentum skipping.
+- **Directional Elastic Pop:** Toggling coins triggers an energetic micro-scale and directional spring transition with a subtle liquid capsule stretch response.
 - **Unlisted Recovery Shelf:** If an unlisted or delisted ticker is entered, the UI provides an instant one-click recovery back to the previously active symbol alongside favorite shortcuts.
 
 ### Menu Bar Companion and Settings
@@ -120,6 +122,9 @@ Active metrics in your grid are automatically hidden from the selection list to 
 | Action | Trigger |
 | :--- | :--- |
 | **Expand / Collapse Island** | Hover cursor over notch, click collapsed island, or press `Option + Shift + C` (`⌥⇧C`) |
+| **Cycle Next Favorite** | Two-finger swipe left over notch, drag left, or press `→` |
+| **Cycle Previous Favorite** | Two-finger swipe right over notch, drag right, or press `←` |
+| **Direct Favorite Jump** | Press number keys `1`–`9` |
 | **Search Pairs** | Click magnifying glass icon in expanded header |
 | **Customize Grid** | Click pencil icon in expanded header |
 | **Favorite / Unfavorite** | Click star icon beside symbol name |
