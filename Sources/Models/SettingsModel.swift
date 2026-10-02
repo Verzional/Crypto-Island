@@ -89,8 +89,65 @@ public final class SettingsModel: ObservableObject {
         gridSlots[index] = metric
     }
 
-    public func resetGridSlots() {
-        gridSlots = StatMetric.defaultSlots
+    public func resetGridSlots(for exchange: CryptoExchange = .binance) {
+        gridSlots = StatMetric.defaultSlots(for: exchange)
+    }
+
+    /// Computes the active 6 slots for a given exchange, substituting any metrics unsupported by the exchange with suitable defaults.
+    public func effectiveGridSlots(for exchange: CryptoExchange) -> [StatMetric] {
+        let defaults = StatMetric.defaultSlots(for: exchange)
+        let allAvailable = StatMetric.availableMetrics(for: exchange)
+        var result: [StatMetric] = []
+        var usedMetrics: Set<StatMetric> = []
+
+        let current = gridSlots.count == 6 ? gridSlots : defaults
+
+        for (idx, metric) in current.prefix(6).enumerated() {
+            if metric.isAvailable(on: exchange) && !usedMetrics.contains(metric) {
+                result.append(metric)
+                usedMetrics.insert(metric)
+            } else {
+                let candidate: StatMetric
+                if idx < defaults.count && !usedMetrics.contains(defaults[idx]) {
+                    candidate = defaults[idx]
+                } else if let fallbackDefault = defaults.first(where: { !usedMetrics.contains($0) }) {
+                    candidate = fallbackDefault
+                } else if let anyAvailable = allAvailable.first(where: { !usedMetrics.contains($0) }) {
+                    candidate = anyAvailable
+                } else {
+                    candidate = metric
+                }
+                result.append(candidate)
+                usedMetrics.insert(candidate)
+            }
+        }
+
+        while result.count < 6 {
+            let nextIdx = result.count
+            if nextIdx < defaults.count && !usedMetrics.contains(defaults[nextIdx]) {
+                let m = defaults[nextIdx]
+                result.append(m)
+                usedMetrics.insert(m)
+            } else if let fallback = defaults.first(where: { !usedMetrics.contains($0) }) {
+                result.append(fallback)
+                usedMetrics.insert(fallback)
+            } else if let any = allAvailable.first(where: { !usedMetrics.contains($0) }) {
+                result.append(any)
+                usedMetrics.insert(any)
+            } else {
+                break
+            }
+        }
+
+        return result
+    }
+
+    /// Adapts the configured grid slots to be compatible with the given exchange.
+    public func adaptSlots(for exchange: CryptoExchange) {
+        let adapted = effectiveGridSlots(for: exchange)
+        if adapted != gridSlots {
+            gridSlots = adapted
+        }
     }
 
     public func isFavorite(_ symbol: String) -> Bool {

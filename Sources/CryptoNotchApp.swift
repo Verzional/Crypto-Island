@@ -26,6 +26,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let settings = SettingsModel()
         let binanceService = BinanceService()
+        settings.adaptSlots(for: binanceService.selectedExchange)
         let islandController = DynamicIslandController(
             binanceService: binanceService,
             settings: settings

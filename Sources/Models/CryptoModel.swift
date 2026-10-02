@@ -1,6 +1,46 @@
 import Foundation
 
-/// Represents a cryptocurrency trading pair on Binance.
+/// Supported cryptocurrency exchanges
+public enum CryptoExchange: String, CaseIterable, Identifiable, Codable {
+    case binance = "Binance"
+    case coinbase = "Coinbase"
+    case kraken = "Kraken"
+
+    public var id: String { rawValue }
+    public var displayName: String { rawValue }
+
+    public var defaultQuoteAsset: String {
+        switch self {
+        case .binance: return "USDT"
+        case .coinbase: return "USD"
+        case .kraken: return "USD"
+        }
+    }
+
+    public var iconSymbol: String {
+        switch self {
+        case .binance: return "b.circle.fill"
+        case .coinbase: return "c.circle.fill"
+        case .kraken: return "k.circle.fill"
+        }
+    }
+
+    /// Formats the trading pair string for the exchange API
+    public func formatSymbol(base: String, quote: String) -> String {
+        let b = base.uppercased()
+        let q = quote.uppercased()
+        switch self {
+        case .binance:
+            return "\(b)\(q)"
+        case .coinbase:
+            return "\(b)-\(q)"
+        case .kraken:
+            return "\(b)/\(q)"
+        }
+    }
+}
+
+/// Represents a cryptocurrency trading pair.
 public struct CryptoSymbol: Identifiable, Hashable, Codable {
     public var id: String { symbol }
     public let symbol: String
@@ -17,6 +57,21 @@ public struct CryptoSymbol: Identifiable, Hashable, Codable {
         self.iconSymbol = iconSymbol
     }
 
+    /// Returns the symbol formatted specifically for the given exchange API
+    public func formattedSymbol(for exchange: CryptoExchange) -> String {
+        let effectiveQuote = self.effectiveQuote(for: exchange)
+        return exchange.formatSymbol(base: baseAsset, quote: effectiveQuote)
+    }
+
+    /// Returns the effective quote asset for the given exchange (e.g. USDT for Binance, USD for Coinbase/Kraken)
+    public func effectiveQuote(for exchange: CryptoExchange) -> String {
+        if exchange == .binance {
+            return (quoteAsset == "USD") ? "USDT" : quoteAsset
+        } else {
+            return (quoteAsset == "USDT") ? "USD" : quoteAsset
+        }
+    }
+
     /// Common presets available out-of-the-box (Top 9 non-stablecoin cryptocurrencies)
     public static let presets: [CryptoSymbol] = [
         CryptoSymbol(symbol: "BTCUSDT", baseAsset: "BTC", name: "Bitcoin", iconSymbol: "bitcoinsign.circle.fill"),
@@ -30,8 +85,8 @@ public struct CryptoSymbol: Identifiable, Hashable, Codable {
         CryptoSymbol(symbol: "LINKUSDT", baseAsset: "LINK", name: "Chainlink", iconSymbol: "link.circle.fill")
     ]
 
-    /// Creates a symbol from user text (e.g. "BTC", "BTC/USDT", or "$SOL")
-    public static func from(rawInput: String) -> CryptoSymbol {
+    /// Creates a symbol from user text (e.g. "BTC", "BTC/USDT", "BTC-USD", or "$SOL")
+    public static func from(rawInput: String, defaultExchange: CryptoExchange = .binance) -> CryptoSymbol {
         var trimmed = rawInput.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
 
         // Strip leading currency prefixes like $ or #
@@ -43,19 +98,20 @@ public struct CryptoSymbol: Identifiable, Hashable, Codable {
         let alphanumericOnly = trimmed.filter { $0.isLetter || $0.isNumber }
         guard !alphanumericOnly.isEmpty else {
             return CryptoSymbol(
-                symbol: "INVALIDUSDT",
+                symbol: "INVALID\(defaultExchange.defaultQuoteAsset)",
                 baseAsset: "INVALID",
-                quoteAsset: "USDT",
+                quoteAsset: defaultExchange.defaultQuoteAsset,
                 name: "Unknown",
                 iconSymbol: "questionmark.circle"
             )
         }
 
-        let quote = "USDT"
+        let defaultQuote = defaultExchange.defaultQuoteAsset
         let base: String
+        let quote: String
         let symbol: String
 
-        // Check if user separated base and quote with slash, dash, or underscore (e.g. "BTC/USDT", "BTC-USDT")
+        // Check if user separated base and quote with slash, dash, or underscore (e.g. "BTC/USDT", "BTC-USD")
         let separators = CharacterSet(charactersIn: "/-_")
         let parts = trimmed.components(separatedBy: separators).filter { !$0.isEmpty }
 
@@ -64,22 +120,30 @@ public struct CryptoSymbol: Identifiable, Hashable, Codable {
             let quotePart = parts[1].filter { $0.isLetter || $0.isNumber }
             if !basePart.isEmpty && !quotePart.isEmpty {
                 base = basePart
+                quote = quotePart
                 symbol = basePart + quotePart
             } else {
                 base = alphanumericOnly
+                quote = defaultQuote
                 symbol = alphanumericOnly.hasSuffix(quote) && alphanumericOnly.count > quote.count ? alphanumericOnly : alphanumericOnly + quote
             }
         } else {
-            if alphanumericOnly.hasSuffix(quote) && alphanumericOnly.count > quote.count {
+            if alphanumericOnly.hasSuffix("USDT") && alphanumericOnly.count > 4 {
+                quote = "USDT"
+                base = String(alphanumericOnly.dropLast(4))
                 symbol = alphanumericOnly
-                base = String(alphanumericOnly.dropLast(quote.count))
+            } else if alphanumericOnly.hasSuffix("USD") && alphanumericOnly.count > 3 {
+                quote = "USD"
+                base = String(alphanumericOnly.dropLast(3))
+                symbol = alphanumericOnly
             } else {
                 base = alphanumericOnly
-                symbol = alphanumericOnly + quote
+                quote = defaultQuote
+                symbol = alphanumericOnly + defaultQuote
             }
         }
 
-        if let existing = presets.first(where: { $0.symbol == symbol }) {
+        if let existing = presets.first(where: { $0.baseAsset == base }) {
             return existing
         }
 
@@ -448,11 +512,64 @@ public enum StatMetric: String, CaseIterable, Identifiable, Codable {
         }
     }
 
+    /// Returns true if this metric is available on the specified exchange
+    public func isAvailable(on exchange: CryptoExchange) -> Bool {
+        switch exchange {
+        case .binance:
+            return true
+        case .coinbase:
+            switch self {
+            case .high24h, .low24h, .openPrice, .priceChange, .vwap,
+                 .change1h, .change4h,
+                 .quoteVolume24h, .baseVolume24h, .quoteVolume15m, .quoteVolume5m,
+                 .bestBid, .bestAsk, .spread,
+                 .bookImbalance, .bidDepth20, .askDepth20:
+                return true
+            case .trades24h, .trades5m, .avgTradeSize,
+                 .takerBuyRatio5m, .takerBuyRatio15m:
+                return false
+            }
+        case .kraken:
+            switch self {
+            case .high24h, .low24h, .openPrice, .priceChange, .vwap,
+                 .change1h, .change4h,
+                 .quoteVolume24h, .baseVolume24h, .quoteVolume15m, .quoteVolume5m,
+                 .trades24h, .trades5m, .avgTradeSize,
+                 .bestBid, .bestAsk, .spread,
+                 .bookImbalance, .bidDepth20, .askDepth20:
+                return true
+            case .takerBuyRatio5m, .takerBuyRatio15m:
+                return false
+            }
+        }
+    }
+
+    public static func availableMetrics(for exchange: CryptoExchange) -> [StatMetric] {
+        allCases.filter { $0.isAvailable(on: exchange) }
+    }
+
     public static var defaultSlots: [StatMetric] {
-        [
-            .high24h, .quoteVolume15m, .vwap,
-            .low24h, .quoteVolume5m, .takerBuyRatio5m
-        ]
+        defaultSlots(for: .binance)
+    }
+
+    public static func defaultSlots(for exchange: CryptoExchange) -> [StatMetric] {
+        switch exchange {
+        case .binance:
+            return [
+                .high24h, .quoteVolume15m, .vwap,
+                .low24h, .quoteVolume5m, .takerBuyRatio5m
+            ]
+        case .coinbase:
+            return [
+                .high24h, .quoteVolume15m, .vwap,
+                .low24h, .quoteVolume5m, .bookImbalance
+            ]
+        case .kraken:
+            return [
+                .high24h, .quoteVolume15m, .vwap,
+                .low24h, .quoteVolume5m, .bookImbalance
+            ]
+        }
     }
 }
 
