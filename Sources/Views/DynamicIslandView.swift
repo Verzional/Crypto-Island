@@ -88,6 +88,31 @@ public struct DynamicIslandView: View {
             )
             .shadow(color: Color.black.opacity(controller.isExpanded ? 0.35 : 0.0), radius: controller.isExpanded ? 12 : 0, x: 0, y: controller.isExpanded ? 6 : 0)
             .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 30)
+                    .onEnded { value in
+                        guard !controller.isCustomInputShowing, !controller.isCustomizingGrid else { return }
+                        if abs(value.translation.width) >= abs(value.translation.height) {
+                            if value.translation.width < -35 {
+                                controller.cycleFavorite(direction: .next)
+                            } else if value.translation.width > 35 {
+                                controller.cycleFavorite(direction: .previous)
+                            }
+                        } else {
+                            if value.translation.height > 25 && !controller.isExpanded {
+                                controller.toggleExpansion()
+                            } else if value.translation.height < -25 && controller.isExpanded && !settings.isPinned {
+                                controller.toggleExpansion()
+                            }
+                        }
+                    }
+            )
+            .scaleEffect(
+                x: controller.cyclePulse ? 1.022 : 1.0,
+                y: controller.cyclePulse ? 0.985 : 1.0,
+                anchor: .top
+            )
+            .animation(.spring(response: 0.22, dampingFraction: 0.68), value: controller.cyclePulse)
         }
         .opacity((settings.stealthMode && !controller.isExpanded && !controller.isHovered) ? 0.0 : 1.0)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

@@ -19,11 +19,24 @@ public struct CollapsedNotchView: View {
     public var body: some View {
         HStack(spacing: 0) {
             // Left Ear: Symbol
-            Text(binanceService.currentSymbol.baseAsset)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .frame(width: geometry.earWidth, alignment: .center)
+            HStack {
+                Text(binanceService.currentSymbol.baseAsset)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .id(binanceService.currentSymbol.symbol + "_collapsed_sym")
+                    .transition(
+                        .asymmetric(
+                            insertion: .offset(x: controller.cycleDirection == .next ? 16 : -16)
+                                .combined(with: .scale(scale: 0.88, anchor: .center))
+                                .combined(with: .opacity),
+                            removal: .offset(x: controller.cycleDirection == .next ? -16 : 16)
+                                .combined(with: .scale(scale: 0.90, anchor: .center))
+                                .combined(with: .opacity)
+                        )
+                    )
+            }
+            .frame(width: geometry.earWidth, alignment: .center)
 
             // Center: Gap matching physical camera notch
             if geometry.hasNotch {
@@ -54,6 +67,17 @@ public struct CollapsedNotchView: View {
                         .skeletonPulse()
                 }
             }
+            .id(binanceService.currentSymbol.symbol + "_collapsed_price")
+            .transition(
+                .asymmetric(
+                    insertion: .offset(x: controller.cycleDirection == .next ? 16 : -16)
+                        .combined(with: .scale(scale: 0.88, anchor: .center))
+                        .combined(with: .opacity),
+                    removal: .offset(x: controller.cycleDirection == .next ? -16 : 16)
+                        .combined(with: .scale(scale: 0.90, anchor: .center))
+                        .combined(with: .opacity)
+                )
+            )
             .frame(width: geometry.earWidth, alignment: .center)
         }
         .frame(height: geometry.collapsedHeight)

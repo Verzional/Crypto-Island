@@ -128,6 +128,16 @@ public struct ExpandedNotchView: View {
                             .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
                     )
                 }
+                .id(binanceService.currentSymbol.symbol + "_expanded_content")
+                .transition(
+                    .asymmetric(
+                        insertion: .scale(scale: 0.96)
+                            .combined(with: .offset(x: controller.cycleDirection == .next ? 12 : -12))
+                            .combined(with: .opacity),
+                        removal: .scale(scale: 0.98)
+                            .combined(with: .opacity)
+                    )
+                )
                 .padding(.top, 4)
                 .padding(.horizontal, 14)
                 .padding(.bottom, 14)
@@ -166,6 +176,17 @@ public struct ExpandedNotchView: View {
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
                                 .foregroundColor(.gray)
                         }
+                        .id(binanceService.currentSymbol.symbol + "_top_sym")
+                        .transition(
+                            .asymmetric(
+                                insertion: .offset(x: controller.cycleDirection == .next ? 16 : -16)
+                                    .combined(with: .scale(scale: 0.88, anchor: .center))
+                                    .combined(with: .opacity),
+                                removal: .offset(x: controller.cycleDirection == .next ? -16 : 16)
+                                    .combined(with: .scale(scale: 0.90, anchor: .center))
+                                    .combined(with: .opacity)
+                            )
+                        )
                         if !binanceService.isInvalidSymbol {
                             favoriteStarButton
                         }
@@ -198,6 +219,17 @@ public struct ExpandedNotchView: View {
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
                                 .foregroundColor(.gray)
                         }
+                        .id(binanceService.currentSymbol.symbol + "_top_sym_nonnotch")
+                        .transition(
+                            .asymmetric(
+                                insertion: .offset(x: controller.cycleDirection == .next ? 16 : -16)
+                                    .combined(with: .scale(scale: 0.88, anchor: .center))
+                                    .combined(with: .opacity),
+                                removal: .offset(x: controller.cycleDirection == .next ? -16 : 16)
+                                    .combined(with: .scale(scale: 0.90, anchor: .center))
+                                    .combined(with: .opacity)
+                            )
+                        )
                         if !binanceService.isInvalidSymbol {
                             favoriteStarButton
                         }
