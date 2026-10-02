@@ -7,6 +7,24 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Most recent updates to CryptoNotch</description>
         <language>en</language>
         <item>
+            <title>CryptoNotch 1.2.0</title>
+            <pubDate>Fri, 02 Oct 2026 08:32:00 +0700</pubDate>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h2>CryptoNotch 1.2.0</h2>
+<ul>
+  <li><strong>Multi-Exchange Support:</strong> Added live market data ingestion and real-time WebSocket feeds for <strong>Coinbase</strong> and <strong>Kraken</strong> alongside <strong>Binance</strong>.</li>
+  <li><strong>Full Order Book Depth:</strong> Implemented Level 2 depth ingestion across all three platforms, calculating top 20 bid depth, ask depth, and order book imbalance percentage.</li>
+  <li><strong>Rolling Price Changes &amp; VWAP:</strong> Added 1-hour and 4-hour rolling price changes, plus 24-hour VWAP synthesis for Coinbase.</li>
+  <li><strong>Dynamic Slot Adaptation:</strong> Automatically defaults any unsupported slot metrics when switching exchanges to prevent missing or invalid data.</li>
+  <li><strong>Exchange-Aware Customization:</strong> Stats grid editor now dynamically filters available metrics to match the selected exchange.</li>
+</ul>
+            ]]></description>
+            <enclosure url="https://github.com/Verzional/CryptoNotch/releases/download/v1.2.0/CryptoNotch.dmg" sparkle:edSignature="RuaE7N7vXSZ+1zSgRISHr3O4TIL44NMj42Jyc4rjsGuOYFSIrXgs5tbTGAjWbMf0+rAODUXeCRf+yXExeNl0DA==" length="6947685" type="application/octet-stream"></enclosure>
+        </item>
+        <item>
             <title>CryptoNotch 1.1.2</title>
             <pubDate>Thu, 01 Oct 2026 15:20:00 +0700</pubDate>
             <sparkle:version>5</sparkle:version>
@@ -70,6 +88,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: /089d8j6td94yknG9Z0KOjcLp7lm6I69blwct/hWQ0SN3lzMlUoKMLd2L7Z3sMXOU96+RB7cCKf3bRpSHyZQAQ==
-length: 5151
+edSignature: PHvj73hBigvq0IcgyqO7DWhE2l/3FH98qtTJx/XUmVNt7IWT9ourx+/l5a6gxEXNRYASWCwMtlzZB+cASHGECw==
+length: 6748
 -->
