@@ -156,7 +156,7 @@ public enum BinanceDataParser {
               let asks = json["asks"] as? [[Any]] else { return }
 
         var totalBidDepth: Double = 0
-        for bid in bids {
+        for bid in bids.prefix(20) {
             guard bid.count >= 2 else { continue }
             let p = (bid[0] as? Double) ?? Double(bid[0] as? String ?? "") ?? 0
             let q = (bid[1] as? Double) ?? Double(bid[1] as? String ?? "") ?? 0
@@ -164,7 +164,7 @@ public enum BinanceDataParser {
         }
 
         var totalAskDepth: Double = 0
-        for ask in asks {
+        for ask in asks.prefix(20) {
             guard ask.count >= 2 else { continue }
             let p = (ask[0] as? Double) ?? Double(ask[0] as? String ?? "") ?? 0
             let q = (ask[1] as? Double) ?? Double(ask[1] as? String ?? "") ?? 0
@@ -178,5 +178,241 @@ public enum BinanceDataParser {
         if combined > 0 {
             ticker.bookImbalance = (totalBidDepth / combined) * 100.0
         }
+    }
+
+    // MARK: - Coinbase Parsing
+
+    public static func parseCoinbaseRest(
+        tickerJson: [String: Any],
+        statsJson: [String: Any]?,
+        symbol: CryptoSymbol,
+        existing: TickerData?
+    ) -> TickerData? {
+        let priceStr = tickerJson["price"] as? String ?? statsJson?["last"] as? String
+        guard let priceStr = priceStr, let lastPrice = Double(priceStr) else { return nil }
+
+        let open = Double(statsJson?["open"] as? String ?? "") ?? (existing?.price ?? lastPrice)
+        let high = Double(statsJson?["high"] as? String ?? "") ?? (existing?.high24h ?? lastPrice)
+        let low = Double(statsJson?["low"] as? String ?? "") ?? (existing?.low24h ?? lastPrice)
+        let volume = Double(statsJson?["volume"] as? String ?? tickerJson["volume"] as? String ?? "") ?? (existing?.volume ?? 0)
+        let bidPrice = Double(tickerJson["bid"] as? String ?? "") ?? (existing?.bidPrice ?? 0)
+        let askPrice = Double(tickerJson["ask"] as? String ?? "") ?? (existing?.askPrice ?? 0)
+
+        let priceChange = lastPrice - open
+        let priceChangePercent = open > 0 ? ((lastPrice - open) / open) * 100.0 : 0.0
+
+        return TickerData(
+            symbol: symbol.symbol,
+            price: lastPrice,
+            priceChange: priceChange,
+            priceChangePercent: priceChangePercent,
+            high24h: high,
+            low24h: low,
+            vwap: existing?.vwap ?? lastPrice,
+            volume: volume,
+            quoteVolume: volume * lastPrice,
+            volume5m: existing?.volume5m ?? 0,
+            quoteVolume5m: existing?.quoteVolume5m ?? 0,
+            takerBuyRatio5m: existing?.takerBuyRatio5m ?? 50.0,
+            volume15m: existing?.volume15m ?? 0,
+            quoteVolume15m: existing?.quoteVolume15m ?? 0,
+            takerBuyRatio15m: existing?.takerBuyRatio15m ?? 50.0,
+            trades24h: existing?.trades24h ?? 0,
+            trades5m: existing?.trades5m ?? 0,
+            bidPrice: bidPrice,
+            askPrice: askPrice,
+            change1h: existing?.change1h ?? 0,
+            change4h: existing?.change4h ?? 0,
+            bidDepth20: existing?.bidDepth20 ?? 0,
+            askDepth20: existing?.askDepth20 ?? 0,
+            bookImbalance: existing?.bookImbalance ?? 50.0,
+            lastUpdated: Date(),
+            direction: .neutral
+        )
+    }
+
+    public static func parseCoinbaseWebSocket(
+        _ json: [String: Any],
+        symbol: CryptoSymbol,
+        existing: TickerData?
+    ) -> (ticker: TickerData, direction: PriceDirection)? {
+        guard let priceStr = json["price"] as? String,
+              let price = Double(priceStr) else { return nil }
+
+        let open = Double(json["open_24h"] as? String ?? "") ?? (existing?.price ?? price)
+        let high = Double(json["high_24h"] as? String ?? "") ?? (existing?.high24h ?? price)
+        let low = Double(json["low_24h"] as? String ?? "") ?? (existing?.low24h ?? price)
+        let volume = Double(json["volume_24h"] as? String ?? "") ?? (existing?.volume ?? 0)
+        let bidPrice = Double(json["best_bid"] as? String ?? "") ?? (existing?.bidPrice ?? 0)
+        let askPrice = Double(json["best_ask"] as? String ?? "") ?? (existing?.askPrice ?? 0)
+
+        let priceChange = price - open
+        let priceChangePercent = open > 0 ? ((price - open) / open) * 100.0 : 0.0
+
+        var direction: PriceDirection = .neutral
+        if let oldPrice = existing?.price {
+            if price > oldPrice {
+                direction = .up
+            } else if price < oldPrice {
+                direction = .down
+            }
+        }
+
+        let ticker = TickerData(
+            symbol: symbol.symbol,
+            price: price,
+            priceChange: priceChange,
+            priceChangePercent: priceChangePercent,
+            high24h: high,
+            low24h: low,
+            vwap: existing?.vwap ?? price,
+            volume: volume,
+            quoteVolume: volume * price,
+            volume5m: existing?.volume5m ?? 0,
+            quoteVolume5m: existing?.quoteVolume5m ?? 0,
+            takerBuyRatio5m: existing?.takerBuyRatio5m ?? 50.0,
+            volume15m: existing?.volume15m ?? 0,
+            quoteVolume15m: existing?.quoteVolume15m ?? 0,
+            takerBuyRatio15m: existing?.takerBuyRatio15m ?? 50.0,
+            trades24h: existing?.trades24h ?? 0,
+            trades5m: existing?.trades5m ?? 0,
+            bidPrice: bidPrice,
+            askPrice: askPrice,
+            change1h: existing?.change1h ?? 0,
+            change4h: existing?.change4h ?? 0,
+            bidDepth20: existing?.bidDepth20 ?? 0,
+            askDepth20: existing?.askDepth20 ?? 0,
+            bookImbalance: existing?.bookImbalance ?? 50.0,
+            lastUpdated: Date(),
+            direction: direction
+        )
+
+        return (ticker, direction)
+    }
+
+    // MARK: - Kraken Parsing
+
+    public static func parseKrakenRest(
+        _ json: [String: Any],
+        symbol: CryptoSymbol,
+        existing: TickerData?
+    ) -> TickerData? {
+        guard let result = json["result"] as? [String: Any],
+              let pairData = result.values.first as? [String: Any] else { return nil }
+
+        guard let c = pairData["c"] as? [String], let lastStr = c.first,
+              let lastPrice = Double(lastStr) else { return nil }
+
+        let open = Double(pairData["o"] as? String ?? "") ?? (existing?.price ?? lastPrice)
+        let highArr = pairData["h"] as? [String]
+        let high = Double(highArr?.last ?? highArr?.first ?? "") ?? (existing?.high24h ?? lastPrice)
+        let lowArr = pairData["l"] as? [String]
+        let low = Double(lowArr?.last ?? lowArr?.first ?? "") ?? (existing?.low24h ?? lastPrice)
+        let volArr = pairData["v"] as? [String]
+        let volume = Double(volArr?.last ?? volArr?.first ?? "") ?? (existing?.volume ?? 0)
+        let vwapArr = pairData["p"] as? [String]
+        let vwap = Double(vwapArr?.last ?? vwapArr?.first ?? "") ?? (existing?.vwap ?? lastPrice)
+
+        let bidArr = pairData["b"] as? [String]
+        let bidPrice = Double(bidArr?.first ?? "") ?? (existing?.bidPrice ?? 0)
+        let askArr = pairData["a"] as? [String]
+        let askPrice = Double(askArr?.first ?? "") ?? (existing?.askPrice ?? 0)
+
+        let tradesArr = pairData["t"] as? [Int]
+        let trades = tradesArr?.last ?? tradesArr?.first ?? (existing?.trades24h ?? 0)
+
+        let priceChange = lastPrice - open
+        let priceChangePercent = open > 0 ? ((lastPrice - open) / open) * 100.0 : 0.0
+
+        return TickerData(
+            symbol: symbol.symbol,
+            price: lastPrice,
+            priceChange: priceChange,
+            priceChangePercent: priceChangePercent,
+            high24h: high,
+            low24h: low,
+            vwap: vwap,
+            volume: volume,
+            quoteVolume: volume * lastPrice,
+            volume5m: existing?.volume5m ?? 0,
+            quoteVolume5m: existing?.quoteVolume5m ?? 0,
+            takerBuyRatio5m: existing?.takerBuyRatio5m ?? 50.0,
+            volume15m: existing?.volume15m ?? 0,
+            quoteVolume15m: existing?.quoteVolume15m ?? 0,
+            takerBuyRatio15m: existing?.takerBuyRatio15m ?? 50.0,
+            trades24h: trades,
+            trades5m: existing?.trades5m ?? 0,
+            bidPrice: bidPrice,
+            askPrice: askPrice,
+            change1h: existing?.change1h ?? 0,
+            change4h: existing?.change4h ?? 0,
+            bidDepth20: existing?.bidDepth20 ?? 0,
+            askDepth20: existing?.askDepth20 ?? 0,
+            bookImbalance: existing?.bookImbalance ?? 50.0,
+            lastUpdated: Date(),
+            direction: .neutral
+        )
+    }
+
+    public static func parseKrakenWebSocket(
+        _ json: [String: Any],
+        symbol: CryptoSymbol,
+        existing: TickerData?
+    ) -> (ticker: TickerData, direction: PriceDirection)? {
+        guard let dataArr = json["data"] as? [[String: Any]],
+              let first = dataArr.first else { return nil }
+
+        let price = (first["last"] as? Double) ?? (existing?.price ?? 0)
+        guard price > 0 else { return nil }
+
+        let high = (first["high"] as? Double) ?? (existing?.high24h ?? price)
+        let low = (first["low"] as? Double) ?? (existing?.low24h ?? price)
+        let volume = (first["volume"] as? Double) ?? (existing?.volume ?? 0)
+        let vwap = (first["vwap"] as? Double) ?? (existing?.vwap ?? price)
+        let bidPrice = (first["bid"] as? Double) ?? (existing?.bidPrice ?? 0)
+        let askPrice = (first["ask"] as? Double) ?? (existing?.askPrice ?? 0)
+
+        let priceChange = (first["change"] as? Double) ?? (existing?.priceChange ?? 0)
+        let priceChangePercent = (first["change_pct"] as? Double) ?? (existing?.priceChangePercent ?? 0)
+
+        var direction: PriceDirection = .neutral
+        if let oldPrice = existing?.price {
+            if price > oldPrice {
+                direction = .up
+            } else if price < oldPrice {
+                direction = .down
+            }
+        }
+
+        let ticker = TickerData(
+            symbol: symbol.symbol,
+            price: price,
+            priceChange: priceChange,
+            priceChangePercent: priceChangePercent,
+            high24h: high,
+            low24h: low,
+            vwap: vwap,
+            volume: volume,
+            quoteVolume: volume * price,
+            volume5m: existing?.volume5m ?? 0,
+            quoteVolume5m: existing?.quoteVolume5m ?? 0,
+            takerBuyRatio5m: existing?.takerBuyRatio5m ?? 50.0,
+            volume15m: existing?.volume15m ?? 0,
+            quoteVolume15m: existing?.quoteVolume15m ?? 0,
+            takerBuyRatio15m: existing?.takerBuyRatio15m ?? 50.0,
+            trades24h: existing?.trades24h ?? 0,
+            trades5m: existing?.trades5m ?? 0,
+            bidPrice: bidPrice,
+            askPrice: askPrice,
+            change1h: existing?.change1h ?? 0,
+            change4h: existing?.change4h ?? 0,
+            bidDepth20: existing?.bidDepth20 ?? 0,
+            askDepth20: existing?.askDepth20 ?? 0,
+            bookImbalance: existing?.bookImbalance ?? 50.0,
+            lastUpdated: Date(),
+            direction: direction
+        )
+
+        return (ticker, direction)
     }
 }
