@@ -195,6 +195,64 @@ final class CryptoModelTests: XCTestCase {
         XCTAssertEqual(settings.gridSlots, StatMetric.defaultSlots)
     }
 
+    @MainActor
+    func testEffectiveGridSlotsAndAdaptationWhenSwitchingExchanges() {
+        let settings = SettingsModel()
+        settings.resetGridSlots(for: .binance)
+
+        // 1. Initial Binance slots: all 6 must be available on Binance
+        let binanceSlots = settings.effectiveGridSlots(for: .binance)
+        XCTAssertEqual(binanceSlots.count, 6)
+        XCTAssertEqual(Set(binanceSlots).count, 6)
+        for m in binanceSlots {
+            XCTAssertTrue(m.isAvailable(on: .binance))
+        }
+
+        // 2. Switching to Coinbase: only takerBuyRatio5m (slot 5) is unavailable on Coinbase
+        let coinbaseSlots = settings.effectiveGridSlots(for: .coinbase)
+        XCTAssertEqual(coinbaseSlots.count, 6)
+        XCTAssertEqual(Set(coinbaseSlots).count, 6)
+        for m in coinbaseSlots {
+            XCTAssertTrue(m.isAvailable(on: .coinbase), "Metric \(m.rawValue) should be available on Coinbase")
+        }
+        // Slots 0, 1, 2, 3, 4 should be retained as they are available on Coinbase (including VWAP)
+        XCTAssertEqual(coinbaseSlots[0], .high24h)
+        XCTAssertEqual(coinbaseSlots[1], .quoteVolume15m)
+        XCTAssertEqual(coinbaseSlots[2], .vwap)
+        XCTAssertEqual(coinbaseSlots[3], .low24h)
+        XCTAssertEqual(coinbaseSlots[4], .quoteVolume5m)
+        // Unavailable slot 5 (takerBuyRatio5m) defaults to Coinbase default slot 5 (bookImbalance)
+        XCTAssertEqual(coinbaseSlots[5], .bookImbalance)
+
+        // 3. Adapt slots to Coinbase
+        settings.adaptSlots(for: .coinbase)
+        XCTAssertEqual(settings.gridSlots, coinbaseSlots)
+
+        // 4. Switching to Kraken: all slots in Kraken must be available on Kraken
+        let krakenSlots = settings.effectiveGridSlots(for: .kraken)
+        XCTAssertEqual(krakenSlots.count, 6)
+        XCTAssertEqual(Set(krakenSlots).count, 6)
+        for m in krakenSlots {
+            XCTAssertTrue(m.isAvailable(on: .kraken), "Metric \(m.rawValue) should be available on Kraken")
+        }
+        XCTAssertTrue(StatMetric.bidDepth20.isAvailable(on: .kraken))
+        XCTAssertTrue(StatMetric.askDepth20.isAvailable(on: .kraken))
+        XCTAssertTrue(StatMetric.bookImbalance.isAvailable(on: .kraken))
+        XCTAssertTrue(StatMetric.change1h.isAvailable(on: .kraken))
+        XCTAssertTrue(StatMetric.change4h.isAvailable(on: .kraken))
+
+        XCTAssertTrue(StatMetric.bidDepth20.isAvailable(on: .coinbase))
+        XCTAssertTrue(StatMetric.askDepth20.isAvailable(on: .coinbase))
+        XCTAssertTrue(StatMetric.bookImbalance.isAvailable(on: .coinbase))
+        XCTAssertTrue(StatMetric.change1h.isAvailable(on: .coinbase))
+        XCTAssertTrue(StatMetric.change4h.isAvailable(on: .coinbase))
+        XCTAssertTrue(StatMetric.vwap.isAvailable(on: .coinbase))
+
+        // 5. Adapt slots to Kraken
+        settings.adaptSlots(for: .kraken)
+        XCTAssertEqual(settings.gridSlots, krakenSlots)
+    }
+
     func testAdditionalTickerDataFormatters() {
         let ticker = TickerData(
             symbol: "BTCUSDT",
