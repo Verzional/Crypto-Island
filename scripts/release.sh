@@ -349,9 +349,8 @@ TAP_REPO="Verzional/homebrew-tap"
 CASK_PATH="Casks/cryptonotch.rb"
 
 # Fetch current cask file metadata from GitHub API
-TAP_FILE_JSON=$(gh api "repos/${TAP_REPO}/contents/${CASK_PATH}" 2>/dev/null || echo "")
-if [ -n "$TAP_FILE_JSON" ]; then
-    TAP_SHA=$(echo "$TAP_FILE_JSON" | jq -r .sha)
+TAP_SHA=$(gh api "repos/${TAP_REPO}/contents/${CASK_PATH}" --jq '.sha' 2>/dev/null || echo "")
+if [ -n "$TAP_SHA" ]; then
     
     NEW_CASK_CONTENT=$(cat << EOF
 cask "cryptonotch" do
