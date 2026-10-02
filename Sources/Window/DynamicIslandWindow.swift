@@ -123,13 +123,29 @@ public struct NotchGeometry: Equatable {
     }
 }
 
+/// Direction of transition animation when cycling through favorite cryptocurrency pairs.
+public enum CycleDirection: String, CaseIterable, Equatable {
+    case next
+    case previous
+}
+
 /// Hosting view that allows mouse events outside the active Dynamic Island area to pass through to underlying windows.
 final class DynamicIslandHostingView<Content: View>: NSHostingView<Content> {
     var isExpandedProvider: () -> Bool = { false }
     var isCollapsingProvider: () -> Bool = { false }
     var isHoveredProvider: () -> Bool = { false }
+    var isCustomInputShowingProvider: () -> Bool = { false }
+    var isCustomizingGridProvider: () -> Bool = { false }
     var onHoverChanged: ((Bool) -> Void)?
+    var onSwipeGesture: ((CycleDirection) -> Void)?
+    var onJumpToFavorite: ((Int) -> Void)?
+    var onEscape: (() -> Void)?
     private var trackingAreaRef: NSTrackingArea?
+    private var hasTriggeredInCurrentSwipe: Bool = false
+    private var accumulatedDeltaX: CGFloat = 0
+    private var lastSwipeTriggerTime: TimeInterval = 0
+
+    override var acceptsFirstResponder: Bool { true }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -191,6 +207,98 @@ final class DynamicIslandHostingView<Content: View>: NSHostingView<Content> {
         setHovered(false)
     }
 
+    override func mouseDown(with event: NSEvent) {
+        let localPoint = convert(event.locationInWindow, from: nil)
+        if activeRect().contains(localPoint), let window = self.window, !window.isKeyWindow {
+            window.makeKey()
+            window.makeFirstResponder(self)
+        }
+        super.mouseDown(with: event)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        guard !isCustomInputShowingProvider(), !isCustomizingGridProvider() else {
+            super.scrollWheel(with: event)
+            return
+        }
+
+        let localPoint = convert(event.locationInWindow, from: nil)
+        guard activeRect().contains(localPoint) else {
+            super.scrollWheel(with: event)
+            return
+        }
+
+        // Drop inertia/momentum scroll events entirely to ensure one swipe strictly equals one coin
+        if !event.momentumPhase.isEmpty {
+            return
+        }
+
+        if event.phase.contains(.began) {
+            hasTriggeredInCurrentSwipe = false
+            accumulatedDeltaX = 0
+        }
+
+        if event.phase.contains(.changed) {
+            accumulatedDeltaX += event.scrollingDeltaX
+            if !hasTriggeredInCurrentSwipe && abs(accumulatedDeltaX) >= 22.0 {
+                hasTriggeredInCurrentSwipe = true
+                let direction: CycleDirection = accumulatedDeltaX < 0 ? .next : .previous
+                onSwipeGesture?(direction)
+            }
+            return
+        }
+
+        if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+            hasTriggeredInCurrentSwipe = false
+            accumulatedDeltaX = 0
+            return
+        }
+
+        // Fallback for non-trackpad scroll wheels (phase is empty)
+        if event.phase.isEmpty && event.momentumPhase.isEmpty {
+            let delta = event.scrollingDeltaX
+            let now = ProcessInfo.processInfo.systemUptime
+            if abs(delta) > 4.0 && now - lastSwipeTriggerTime > 0.40 {
+                lastSwipeTriggerTime = now
+                let direction: CycleDirection = delta < 0 ? .next : .previous
+                onSwipeGesture?(direction)
+                return
+            }
+        }
+
+        super.scrollWheel(with: event)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if isCustomInputShowingProvider() {
+            super.keyDown(with: event)
+            return
+        }
+
+        switch event.keyCode {
+        case 123: // Left arrow
+            onSwipeGesture?(.previous)
+            return
+        case 124: // Right arrow
+            onSwipeGesture?(.next)
+            return
+        case 53: // Escape
+            onEscape?()
+            return
+        default:
+            break
+        }
+
+        if let chars = event.charactersIgnoringModifiers,
+           let num = Int(chars),
+           (1...9).contains(num) {
+            onJumpToFavorite?(num - 1)
+            return
+        }
+
+        super.keyDown(with: event)
+    }
+
     private func checkHover(with event: NSEvent) {
         let localPoint = convert(event.locationInWindow, from: nil)
         let inside = activeRect().contains(localPoint)
@@ -216,6 +324,8 @@ public final class DynamicIslandController: NSObject, ObservableObject {
     @Published public var isHovered: Bool = false
     @Published public var isCustomInputShowing: Bool = false
     @Published public var isCustomizingGrid: Bool = false
+    @Published public var cycleDirection: CycleDirection = .next
+    @Published public var cyclePulse: Bool = false
     public var isCollapsing: Bool = false
 
     private var hostingView: DynamicIslandHostingView<AnyView>?
@@ -294,12 +404,97 @@ public final class DynamicIslandController: NSObject, ObservableObject {
         host.isExpandedProvider = { [weak self] in self?.isExpanded ?? false }
         host.isCollapsingProvider = { [weak self] in self?.isCollapsing ?? false }
         host.isHoveredProvider = { [weak self] in self?.isHovered ?? false }
+        host.isCustomInputShowingProvider = { [weak self] in self?.isCustomInputShowing ?? false }
+        host.isCustomizingGridProvider = { [weak self] in self?.isCustomizingGrid ?? false }
         host.onHoverChanged = { [weak self] hovered in
             self?.handleHover(hovered)
+        }
+        host.onSwipeGesture = { [weak self] direction in
+            self?.cycleFavorite(direction: direction)
+        }
+        host.onJumpToFavorite = { [weak self] index in
+            self?.jumpToFavorite(index: index)
+        }
+        host.onEscape = { [weak self] in
+            guard let self = self else { return }
+            if self.isCustomizingGrid {
+                self.isCustomizingGrid = false
+            } else if self.isExpanded && !self.settings.isPinned {
+                withAnimation(Self.collapseAnimation) {
+                    self.isExpanded = false
+                }
+            }
         }
         host.autoresizingMask = [.width, .height]
         panel.contentView = host
         self.hostingView = host
+    }
+
+    public func cyclingSymbols() -> [CryptoSymbol] {
+        if settings.favorites.count >= 2 {
+            return settings.favorites.map { fav in
+                CryptoSymbol.presets.first(where: { $0.symbol == fav })
+                    ?? CryptoSymbol.from(rawInput: fav, defaultExchange: binanceService.selectedExchange)
+            }
+        } else {
+            return CryptoSymbol.presets
+        }
+    }
+
+    public func cycleFavorite(direction: CycleDirection) {
+        let list = cyclingSymbols()
+        guard list.count >= 2 else { return }
+
+        let current = binanceService.currentSymbol.symbol
+        let currentIndex = list.firstIndex(where: { $0.symbol == current })
+
+        let nextIndex: Int
+        switch direction {
+        case .next:
+            if let idx = currentIndex {
+                nextIndex = (idx + 1) % list.count
+            } else {
+                nextIndex = 0
+            }
+        case .previous:
+            if let idx = currentIndex {
+                nextIndex = (idx - 1 + list.count) % list.count
+            } else {
+                nextIndex = list.count - 1
+            }
+        }
+
+        self.cycleDirection = direction
+        self.cyclePulse = true
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.70)) {
+            binanceService.selectSymbol(list[nextIndex])
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            withAnimation(.spring(response: 0.20, dampingFraction: 0.75)) {
+                self?.cyclePulse = false
+            }
+        }
+    }
+
+    public func jumpToFavorite(index: Int) {
+        let list = cyclingSymbols()
+        guard index >= 0, index < list.count else { return }
+
+        let current = binanceService.currentSymbol.symbol
+        let currentIndex = list.firstIndex(where: { $0.symbol == current }) ?? 0
+        if index == currentIndex { return }
+
+        let direction: CycleDirection = index > currentIndex ? .next : .previous
+        self.cycleDirection = direction
+        self.cyclePulse = true
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.70)) {
+            binanceService.selectSymbol(list[index])
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            withAnimation(.spring(response: 0.20, dampingFraction: 0.75)) {
+                self?.cyclePulse = false
+            }
+        }
     }
 
     public func handleHover(_ hovering: Bool) {
@@ -313,6 +508,10 @@ public final class DynamicIslandController: NSObject, ObservableObject {
                 withAnimation(Self.expandAnimation) {
                     isExpanded = true
                 }
+                panel.makeKey()
+                if let host = hostingView {
+                    panel.makeFirstResponder(host)
+                }
             }
         } else {
             guard isExpanded, !settings.isPinned, !isCustomInputShowing, !isCustomizingGrid else { return }
@@ -325,6 +524,7 @@ public final class DynamicIslandController: NSObject, ObservableObject {
                 withAnimation(Self.collapseAnimation) {
                     self.isExpanded = false
                 }
+                self.panel.makeFirstResponder(nil)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak self] in
                     guard let self = self else { return }
                     if !self.isExpanded {
@@ -341,6 +541,12 @@ public final class DynamicIslandController: NSObject, ObservableObject {
         let anim = !isExpanded ? Self.expandAnimation : Self.collapseAnimation
         withAnimation(anim) {
             isExpanded.toggle()
+        }
+        if isExpanded {
+            panel.makeKey()
+            if let host = hostingView {
+                panel.makeFirstResponder(host)
+            }
         }
     }
 
