@@ -81,12 +81,22 @@ public struct ExpandedNotchView: View {
                         }
 
                         Spacer()
+
+                        // Exchange Badge
+                        Text(binanceService.selectedExchange.displayName.uppercased())
+                            .font(.system(size: 8.5, weight: .bold, design: .rounded))
+                            .tracking(0.5)
+                            .foregroundColor(.white.opacity(0.45))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2.5)
+                            .background(Color.white.opacity(0.06))
+                            .clipShape(Capsule())
                     }
                     .frame(height: 22)
 
                     // 2-Row Stats Grid: Configurable 6-Slot Grid
                     VStack(spacing: 5) {
-                        let slots = settings.gridSlots.count == 6 ? settings.gridSlots : StatMetric.defaultSlots
+                        let slots = settings.effectiveGridSlots(for: binanceService.selectedExchange)
                         // Row 1
                         HStack(spacing: 8) {
                             MetricCellView(slotIndex: 0, metric: slots[0], ticker: binanceService.ticker)
@@ -133,6 +143,12 @@ public struct ExpandedNotchView: View {
                     ))
             }
         }
+        .onAppear {
+            settings.adaptSlots(for: binanceService.selectedExchange)
+        }
+        .onChange(of: binanceService.selectedExchange) { newExchange in
+            settings.adaptSlots(for: newExchange)
+        }
     }
 
     // MARK: - Top Bar
@@ -146,7 +162,7 @@ public struct ExpandedNotchView: View {
                             Text(binanceService.currentSymbol.baseAsset)
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundColor(.white)
-                            Text("/ " + binanceService.currentSymbol.quoteAsset)
+                            Text("/ " + binanceService.currentSymbol.effectiveQuote(for: binanceService.selectedExchange))
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
                                 .foregroundColor(.gray)
                         }
@@ -178,7 +194,7 @@ public struct ExpandedNotchView: View {
                             Text(binanceService.currentSymbol.baseAsset)
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundColor(.white)
-                            Text("/ " + binanceService.currentSymbol.quoteAsset)
+                            Text("/ " + binanceService.currentSymbol.effectiveQuote(for: binanceService.selectedExchange))
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
                                 .foregroundColor(.gray)
                         }
@@ -317,7 +333,7 @@ public struct ExpandedNotchView: View {
         }
         .help("Customize Stats Grid")
         .popover(isPresented: $controller.isCustomizingGrid, arrowEdge: .bottom) {
-            CustomizationPopover(settings: settings)
+            CustomizationPopover(settings: settings, exchange: binanceService.selectedExchange)
         }
     }
 
@@ -385,7 +401,7 @@ public struct ExpandedNotchView: View {
                     .foregroundColor(.white)
                     .lineLimit(1)
 
-                Text("\"\(binanceService.currentSymbol.baseAsset)/\(binanceService.currentSymbol.quoteAsset)\" is not listed on Binance Spot")
+                Text("\"\(binanceService.currentSymbol.baseAsset)/\(binanceService.currentSymbol.effectiveQuote(for: binanceService.selectedExchange))\" is not listed on \(binanceService.selectedExchange.displayName)")
                     .font(.system(size: 10.5, weight: .regular, design: .rounded))
                     .foregroundColor(.white.opacity(0.55))
                     .lineLimit(1)
@@ -484,7 +500,7 @@ public struct ExpandedNotchView: View {
 
     private var quickSwitchSymbols: [CryptoSymbol] {
         let favs = settings.favorites.compactMap { fav in
-            CryptoSymbol.presets.first(where: { $0.symbol == fav }) ?? CryptoSymbol.from(rawInput: fav)
+            CryptoSymbol.presets.first(where: { $0.symbol == fav }) ?? CryptoSymbol.from(rawInput: fav, defaultExchange: binanceService.selectedExchange)
         }.filter { $0.symbol != binanceService.currentSymbol.symbol }
 
         if !favs.isEmpty {

@@ -69,53 +69,44 @@ public struct MetricCellView: View {
         case .openPrice:
             return (ticker.formattedOpenPrice, .white.opacity(0.92), 58)
         case .quoteVolume15m:
-            let volLoaded = ticker.quoteVolume15m > 0
-            return (volLoaded ? ticker.formattedQuoteVolume15m : nil, .white.opacity(0.92), 52)
+            return (ticker.quoteVolume15m > 0 ? ticker.formattedQuoteVolume15m : "--", .white.opacity(0.92), 52)
         case .quoteVolume5m:
-            let volLoaded = ticker.quoteVolume5m > 0
-            return (volLoaded ? ticker.formattedQuoteVolume5m : nil, .white.opacity(0.92), 52)
+            return (ticker.quoteVolume5m > 0 ? ticker.formattedQuoteVolume5m : "--", .white.opacity(0.92), 52)
         case .takerBuyRatio5m:
             let volLoaded = ticker.quoteVolume5m > 0
             let ratio = ticker.takerBuyRatio5m
-            return (volLoaded ? ticker.formattedTakerBuyRatio5m : nil, buyRatioColor(ratio), 36)
+            return (volLoaded ? ticker.formattedTakerBuyRatio5m : "--", buyRatioColor(ratio), 36)
         case .takerBuyRatio15m:
             let volLoaded = ticker.quoteVolume15m > 0
             let ratio = ticker.takerBuyRatio15m
-            return (volLoaded ? ticker.formattedTakerBuyRatio15m : nil, buyRatioColor(ratio), 36)
+            return (volLoaded ? ticker.formattedTakerBuyRatio15m : "--", buyRatioColor(ratio), 36)
         case .trades24h:
-            let loaded = ticker.trades24h > 0
-            return (loaded ? ticker.formattedTrades24h : nil, .white.opacity(0.92), 48)
+            return (ticker.trades24h > 0 ? ticker.formattedTrades24h : "--", .white.opacity(0.92), 48)
         case .trades5m:
-            let loaded = ticker.trades5m > 0
-            return (loaded ? ticker.formattedTrades5m : nil, .white.opacity(0.92), 42)
+            return (ticker.trades5m > 0 ? ticker.formattedTrades5m : "--", .white.opacity(0.92), 42)
         case .spread:
-            let loaded = ticker.spread > 0
-            return (loaded ? ticker.formattedSpread : nil, .white.opacity(0.92), 48)
+            return (ticker.spread > 0 ? ticker.formattedSpread : "--", .white.opacity(0.92), 48)
         case .bestBid:
-            let loaded = ticker.bidPrice > 0
-            return (loaded ? ticker.formattedBid : nil, .green.opacity(0.92), 54)
+            return (ticker.bidPrice > 0 ? ticker.formattedBid : "--", .green.opacity(0.92), 54)
         case .bestAsk:
-            let loaded = ticker.askPrice > 0
-            return (loaded ? ticker.formattedAsk : nil, .red.opacity(0.92), 54)
+            return (ticker.askPrice > 0 ? ticker.formattedAsk : "--", .red.opacity(0.92), 54)
         case .avgTradeSize:
             let loaded = ticker.trades24h > 0 && ticker.quoteVolume > 0
-            return (loaded ? ticker.formattedAvgTradeSize : nil, .white.opacity(0.92), 52)
+            return (loaded ? ticker.formattedAvgTradeSize : "--", .white.opacity(0.92), 52)
         case .change1h:
             let color: Color = ticker.change1h >= 0 ? .green : .red
-            return (ticker.formattedChange1h, color, 48)
+            return (ticker.change1h != 0 ? ticker.formattedChange1h : "--", color, 48)
         case .change4h:
             let color: Color = ticker.change4h >= 0 ? .green : .red
-            return (ticker.formattedChange4h, color, 48)
+            return (ticker.change4h != 0 ? ticker.formattedChange4h : "--", color, 48)
         case .bookImbalance:
             let loaded = ticker.bidDepth20 > 0 || ticker.askDepth20 > 0
             let color: Color = ticker.bookImbalance >= 52.0 ? .green : (ticker.bookImbalance <= 48.0 ? .red : .white.opacity(0.92))
-            return (loaded ? ticker.formattedBookImbalance : nil, color, 52)
+            return (loaded ? ticker.formattedBookImbalance : "--", color, 52)
         case .bidDepth20:
-            let loaded = ticker.bidDepth20 > 0
-            return (loaded ? ticker.formattedBidDepth20 : nil, .green.opacity(0.92), 52)
+            return (ticker.bidDepth20 > 0 ? ticker.formattedBidDepth20 : "--", .green.opacity(0.92), 52)
         case .askDepth20:
-            let loaded = ticker.askDepth20 > 0
-            return (loaded ? ticker.formattedAskDepth20 : nil, .red.opacity(0.92), 52)
+            return (ticker.askDepth20 > 0 ? ticker.formattedAskDepth20 : "--", .red.opacity(0.92), 52)
         }
     }
 }

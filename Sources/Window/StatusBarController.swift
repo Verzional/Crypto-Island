@@ -43,6 +43,14 @@ public final class StatusBarController: NSObject {
             }
             .store(in: &cancellables)
 
+        binanceService.$selectedExchange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] exchange in
+                self?.settings.adaptSlots(for: exchange)
+                self?.rebuildMenu()
+            }
+            .store(in: &cancellables)
+
         settings.$isPinned
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -140,6 +148,23 @@ public final class StatusBarController: NSObject {
         coinsMenuItem.submenu = coinsMenu
         menu.addItem(coinsMenuItem)
 
+        // Exchange Submenu
+        let exchangeMenu = NSMenu()
+        for exchange in CryptoExchange.allCases {
+            let item = NSMenuItem(
+                title: exchange.displayName,
+                action: #selector(selectExchangeAction(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = exchange
+            item.state = (exchange == binanceService.selectedExchange) ? .on : .off
+            exchangeMenu.addItem(item)
+        }
+        let exchangeMenuItem = NSMenuItem(title: "Exchange", action: nil, keyEquivalent: "")
+        exchangeMenuItem.submenu = exchangeMenu
+        menu.addItem(exchangeMenuItem)
+
         menu.addItem(NSMenuItem.separator())
 
         // 2. Toggle Island
@@ -217,6 +242,13 @@ public final class StatusBarController: NSObject {
     @objc private func selectCoin(_ sender: NSMenuItem) {
         if let symbol = sender.representedObject as? CryptoSymbol {
             binanceService.selectSymbol(symbol)
+        }
+    }
+
+    @objc private func selectExchangeAction(_ sender: NSMenuItem) {
+        if let exchange = sender.representedObject as? CryptoExchange {
+            binanceService.selectExchange(exchange)
+            settings.adaptSlots(for: exchange)
         }
     }
 

@@ -1,27 +1,40 @@
 import SwiftUI
 
-/// Popover sheet for customizing the 6 metrics in the stats grid.
+/// Popover sheet for customizing the 6 metrics in the stats grid, filtered to metrics available on the active exchange.
 public struct CustomizationPopover: View {
     @ObservedObject var settings: SettingsModel
+    public let exchange: CryptoExchange
     @State private var selectedSlotToCustomize: Int = 0
     @State private var selectedMetricCategory: MetricCategory = .all
 
-    public init(settings: SettingsModel) {
+    public init(settings: SettingsModel, exchange: CryptoExchange = .binance) {
         self.settings = settings
+        self.exchange = exchange
     }
 
     public var body: some View {
+        let slots = settings.effectiveGridSlots(for: exchange)
         VStack(alignment: .leading, spacing: 10) {
-            // Header: Title + Reset Button
+            // Header: Title + Active Exchange Badge + Reset Button
             HStack(alignment: .center) {
-                Text("Customize Stats")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                HStack(spacing: 5) {
+                    Text("Customize Stats")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+
+                    Text(exchange.displayName)
+                        .font(.system(size: 8.5, weight: .bold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.55))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1.5)
+                        .background(Color.white.opacity(0.08))
+                        .clipShape(Capsule())
+                }
 
                 Spacer()
 
                 Button {
-                    settings.resetGridSlots()
+                    settings.resetGridSlots(for: exchange)
                 } label: {
                     Text("Reset")
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
@@ -41,7 +54,6 @@ public struct CustomizationPopover: View {
                     .foregroundColor(.gray)
                     .tracking(0.5)
 
-                let slots = settings.gridSlots.count == 6 ? settings.gridSlots : StatMetric.defaultSlots
                 VStack(spacing: 4) {
                     HStack(spacing: 4) {
                         ForEach(0..<3, id: \.self) { idx in
@@ -58,22 +70,28 @@ public struct CustomizationPopover: View {
 
             Divider().background(Color.white.opacity(0.12))
 
-            // Metrics picker list filtered by category (trimmed to unused metrics only)
+            // Metrics picker list filtered to metrics supported on the current exchange
             VStack(alignment: .leading, spacing: 6) {
-                let alreadySelected = Set(settings.gridSlots)
+                let alreadySelected = Set(slots)
                 let availableMetrics = StatMetric.allCases.filter { metric in
-                    !alreadySelected.contains(metric) && (selectedMetricCategory == .all || metric.category == selectedMetricCategory)
+                    metric.isAvailable(on: exchange) &&
+                    !alreadySelected.contains(metric) &&
+                    (selectedMetricCategory == .all || metric.category == selectedMetricCategory)
                 }
 
-                // Category capsules
+                // Category capsules (only show categories that have supported metrics on this exchange)
+                let availableCategories = MetricCategory.allCases.filter { cat in
+                    cat == .all || StatMetric.allCases.contains { $0.category == cat && $0.isAvailable(on: exchange) }
+                }
+
                 HStack(spacing: 4) {
-                    ForEach(MetricCategory.allCases) { cat in
+                    ForEach(availableCategories) { cat in
                         categoryFilterCapsule(cat)
                     }
                 }
 
                 if availableMetrics.isEmpty {
-                    Text(selectedMetricCategory == .all ? "All metrics are currently assigned" : "All \(selectedMetricCategory.title) metrics are assigned")
+                    Text(selectedMetricCategory == .all ? "All available \(exchange.displayName) metrics are assigned" : "All available \(selectedMetricCategory.title) metrics are assigned")
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundColor(.gray)
                         .padding(.vertical, 16)
@@ -137,7 +155,10 @@ public struct CustomizationPopover: View {
             }
         }
         .padding(12)
-        .frame(width: 256)
+        .frame(width: 268)
+        .onAppear {
+            settings.adaptSlots(for: exchange)
+        }
     }
 
     private func categoryFilterCapsule(_ cat: MetricCategory) -> some View {
@@ -173,16 +194,24 @@ public struct CustomizationPopover: View {
 
     private func slotPreviewButton(index: Int, metric: StatMetric) -> some View {
         let isSelectedSlot = selectedSlotToCustomize == index
+        let isAvailable = metric.isAvailable(on: exchange)
         return Button {
             selectedSlotToCustomize = index
         } label: {
             VStack(spacing: 1.5) {
-                Text("Slot \(index + 1)")
-                    .font(.system(size: 7.5, weight: .semibold))
-                    .foregroundColor(isSelectedSlot ? .white.opacity(0.9) : .gray)
+                HStack(spacing: 2) {
+                    Text("Slot \(index + 1)")
+                        .font(.system(size: 7.5, weight: .semibold))
+                        .foregroundColor(isSelectedSlot ? .white.opacity(0.9) : .gray)
+                    if !isAvailable {
+                        Text("• N/A")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundColor(.orange)
+                    }
+                }
                 Text(metric.title)
                     .font(.system(size: 9.5, weight: isSelectedSlot ? .bold : .medium, design: .monospaced))
-                    .foregroundColor(isSelectedSlot ? .white : .white.opacity(0.8))
+                    .foregroundColor(isAvailable ? (isSelectedSlot ? .white : .white.opacity(0.8)) : .white.opacity(0.4))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
@@ -194,7 +223,12 @@ public struct CustomizationPopover: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(isSelectedSlot ? Color.white.opacity(0.45) : Color.white.opacity(0.12), lineWidth: isSelectedSlot ? 1.2 : 0.8)
+                    .stroke(
+                        isSelectedSlot
+                            ? Color.white.opacity(0.45)
+                            : (isAvailable ? Color.white.opacity(0.12) : Color.orange.opacity(0.35)),
+                        lineWidth: isSelectedSlot ? 1.2 : 0.8
+                    )
             )
         }
         .buttonStyle(.plain)

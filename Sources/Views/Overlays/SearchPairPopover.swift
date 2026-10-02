@@ -33,13 +33,48 @@ public struct SearchPairPopover: View {
 
                 Spacer()
 
-                Text(binanceService.currentSymbol.symbol)
+                Text("\(binanceService.currentSymbol.baseAsset)/\(binanceService.currentSymbol.effectiveQuote(for: binanceService.selectedExchange))")
                     .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.white.opacity(0.1))
                     .foregroundColor(.white.opacity(0.75))
                     .clipShape(Capsule())
+            }
+
+            // Exchange Segmented Selector
+            HStack(spacing: 5) {
+                ForEach(CryptoExchange.allCases) { exchange in
+                    let isSelected = binanceService.selectedExchange == exchange
+                    Button {
+                        withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
+                            binanceService.selectExchange(exchange)
+                            settings.adaptSlots(for: exchange)
+                        }
+                    } label: {
+                        Text(exchange.displayName)
+                            .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
+                            .foregroundColor(isSelected ? .white : .white.opacity(0.60))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 5)
+                            .background(
+                                isSelected
+                                    ? Color.white.opacity(0.22)
+                                    : Color.white.opacity(0.06)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(
+                                        isSelected
+                                            ? Color.white.opacity(0.35)
+                                            : Color.white.opacity(0.08),
+                                        lineWidth: 0.8
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
             // Sleek Search Input Bar
@@ -66,7 +101,7 @@ public struct SearchPairPopover: View {
             )
 
             if binanceService.isInvalidSymbol {
-                Text("Symbol not found on Binance")
+                Text("Symbol not found on \(binanceService.selectedExchange.displayName)")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.65))
                     .padding(.horizontal, 2)
@@ -132,7 +167,7 @@ public struct SearchPairPopover: View {
                     ZStack {
                         LazyVGrid(columns: columns, spacing: 6) {
                             ForEach(settings.favorites, id: \.self) { favString in
-                                let preset = CryptoSymbol.from(rawInput: favString)
+                                let preset = CryptoSymbol.from(rawInput: favString, defaultExchange: binanceService.selectedExchange)
                                 let isCurrent = preset.symbol == binanceService.currentSymbol.symbol
                                 let isBeingDragged = draggedSymbol == favString
 
@@ -199,7 +234,7 @@ public struct SearchPairPopover: View {
 
                         // Floating dragged pill follower
                         if let dragged = draggedSymbol {
-                            let preset = CryptoSymbol.from(rawInput: dragged)
+                            let preset = CryptoSymbol.from(rawInput: dragged, defaultExchange: binanceService.selectedExchange)
                             let size = pillFrames[dragged]?.size ?? CGSize(width: 71, height: 26)
                             FavoritePillView(
                                 symbol: preset,
@@ -224,7 +259,7 @@ public struct SearchPairPopover: View {
             }
         }
         .padding(12)
-        .frame(width: 250)
+        .frame(width: 285)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 isSearchFocused = true
@@ -234,7 +269,7 @@ public struct SearchPairPopover: View {
 
     private func commitCustomSymbol() {
         guard !customSymbolText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        let sym = CryptoSymbol.from(rawInput: customSymbolText)
+        let sym = CryptoSymbol.from(rawInput: customSymbolText, defaultExchange: binanceService.selectedExchange)
         binanceService.selectSymbol(sym)
         customSymbolText = ""
         isPresented = false
