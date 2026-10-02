@@ -151,9 +151,11 @@ NEW_BUILD=$((CURRENT_BUILD + 1))
 log_step "Current Version: ${BOLD}${CURRENT_VERSION}${RESET} (Build ${CURRENT_BUILD})"
 log_step "Target Release:  ${BOLD}${TARGET_VERSION}${RESET} (Build ${NEW_BUILD})"
 
-# Default title if not supplied
+# Normalize release title to ensure it always includes "v${TARGET_VERSION} — "
 if [ -z "$RELEASE_TITLE" ]; then
     RELEASE_TITLE="v${TARGET_VERSION} — Official Release"
+elif [[ ! "$RELEASE_TITLE" =~ ^v[0-9] ]]; then
+    RELEASE_TITLE="v${TARGET_VERSION} — ${RELEASE_TITLE}"
 fi
 
 # Default notes if not supplied: extract commits since last tag
