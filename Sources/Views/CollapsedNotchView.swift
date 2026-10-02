@@ -25,16 +25,7 @@ public struct CollapsedNotchView: View {
                     .foregroundColor(.white)
                     .lineLimit(1)
                     .id(binanceService.currentSymbol.symbol + "_collapsed_sym")
-                    .transition(
-                        .asymmetric(
-                            insertion: .offset(x: controller.cycleDirection == .next ? 16 : -16)
-                                .combined(with: .scale(scale: 0.88, anchor: .center))
-                                .combined(with: .opacity),
-                            removal: .offset(x: controller.cycleDirection == .next ? -16 : 16)
-                                .combined(with: .scale(scale: 0.90, anchor: .center))
-                                .combined(with: .opacity)
-                        )
-                    )
+                    .transition(.opacity)
             }
             .frame(width: geometry.earWidth, alignment: .center)
 
@@ -68,16 +59,7 @@ public struct CollapsedNotchView: View {
                 }
             }
             .id(binanceService.currentSymbol.symbol + "_collapsed_price")
-            .transition(
-                .asymmetric(
-                    insertion: .offset(x: controller.cycleDirection == .next ? 16 : -16)
-                        .combined(with: .scale(scale: 0.88, anchor: .center))
-                        .combined(with: .opacity),
-                    removal: .offset(x: controller.cycleDirection == .next ? -16 : 16)
-                        .combined(with: .scale(scale: 0.90, anchor: .center))
-                        .combined(with: .opacity)
-                )
-            )
+            .transition(.opacity)
             .frame(width: geometry.earWidth, alignment: .center)
         }
         .frame(height: geometry.collapsedHeight)

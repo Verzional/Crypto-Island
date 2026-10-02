@@ -107,12 +107,6 @@ public struct DynamicIslandView: View {
                         }
                     }
             )
-            .scaleEffect(
-                x: controller.cyclePulse ? 1.022 : 1.0,
-                y: controller.cyclePulse ? 0.985 : 1.0,
-                anchor: .top
-            )
-            .animation(.spring(response: 0.22, dampingFraction: 0.68), value: controller.cyclePulse)
         }
         .opacity((settings.stealthMode && !controller.isExpanded && !controller.isHovered) ? 0.0 : 1.0)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

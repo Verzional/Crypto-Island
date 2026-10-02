@@ -465,14 +465,8 @@ public final class DynamicIslandController: NSObject, ObservableObject {
         }
 
         self.cycleDirection = direction
-        self.cyclePulse = true
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.70)) {
+        withAnimation(.easeOut(duration: 0.15)) {
             binanceService.selectSymbol(list[nextIndex])
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-            withAnimation(.spring(response: 0.20, dampingFraction: 0.75)) {
-                self?.cyclePulse = false
-            }
         }
     }
 
@@ -486,14 +480,8 @@ public final class DynamicIslandController: NSObject, ObservableObject {
 
         let direction: CycleDirection = index > currentIndex ? .next : .previous
         self.cycleDirection = direction
-        self.cyclePulse = true
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.70)) {
+        withAnimation(.easeOut(duration: 0.15)) {
             binanceService.selectSymbol(list[index])
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-            withAnimation(.spring(response: 0.20, dampingFraction: 0.75)) {
-                self?.cyclePulse = false
-            }
         }
     }
 
