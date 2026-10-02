@@ -15,21 +15,11 @@ public struct CustomizationPopover: View {
     public var body: some View {
         let slots = settings.effectiveGridSlots(for: exchange)
         VStack(alignment: .leading, spacing: 10) {
-            // Header: Title + Active Exchange Badge + Reset Button
+            // Header: Title + Reset Button
             HStack(alignment: .center) {
-                HStack(spacing: 5) {
-                    Text("Customize Stats")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-
-                    Text(exchange.displayName)
-                        .font(.system(size: 8.5, weight: .bold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.55))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(Color.white.opacity(0.08))
-                        .clipShape(Capsule())
-                }
+                Text("Customize Stats")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
 
                 Spacer()
 

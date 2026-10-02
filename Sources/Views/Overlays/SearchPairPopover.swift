@@ -110,17 +110,11 @@ public struct SearchPairPopover: View {
 
             // Favorites Grid (Dynamic user favorites, max 9, interactive drag-and-drop reordering)
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 4) {
+                HStack {
                     Text("FAVORITES")
                         .font(.system(size: 9, weight: .bold, design: .rounded))
                         .foregroundColor(.gray)
                         .tracking(0.5)
-
-                    if settings.favorites.count > 1 {
-                        Text("• Drag to reorder")
-                            .font(.system(size: 8, weight: .medium, design: .rounded))
-                            .foregroundColor(.gray.opacity(0.5))
-                    }
 
                     Spacer()
 
